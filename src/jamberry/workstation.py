@@ -64,7 +64,7 @@ class JamberryWorkstation(Workstation):
         self.password = password
         self._cart_url = None
         self._logged_in = False
-    
+
     def __del__(self):
         if self._cart_url is not None:
             self.delete_tmp_search_cart_retail()
@@ -346,7 +346,4 @@ class JamberryWorkstation(Workstation):
             payload = dict(defaults + (('q', k), ))
             resp = self.br.get(search_url, params=payload)
             json_cache[k] = resp.content
-
-
-
-
+        return json_cache
