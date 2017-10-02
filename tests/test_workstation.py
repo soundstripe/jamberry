@@ -58,3 +58,21 @@ def test_get_autocomplete(ws):
     pass
 
 
+@pytest.mark.usefixtures('ws')
+def test_parse_orders(ws):
+    parsed_orders = ws.parse_orders()
+    assert parsed_orders is not None
+
+
+@pytest.mark.usefixtures('ws')
+def test_parse_order_detail(ws):
+    orders_iter = ws.parsed_orders()
+    order = next(orders_iter)
+    order_id = order['id']
+    parsed_details = ws.parse_order_details(order_id)
+    assert 'lines' in parsed_details
+    assert 'address' in parsed_details
+
+
+
+

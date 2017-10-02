@@ -2,9 +2,10 @@ from abc import abstractmethod, ABCMeta, ABC
 from csv import DictReader
 from datetime import datetime, timedelta
 from functools import wraps
-from io import StringIO
+from io import StringIO, BytesIO
 from time import sleep
 from urllib.parse import urljoin
+import re
 
 import mechanicalsoup
 from bs4 import BeautifulSoup
@@ -52,10 +53,6 @@ class Workstation(ABC):
     def get_orders(self):
         return ''
 
-    @abstractmethod
-    def parse_orders(self, raw_orders):
-        return []
-
 
 class JamberryWorkstation(Workstation):
     def __init__(self, username, password, *args, **kwargs):
@@ -102,7 +99,13 @@ class JamberryWorkstation(Workstation):
         self._logged_in = False
 
     @requires_login
-    def get_tar(self, year, month, levels='9999'):
+    def get_tar(self, year=None, month=None, levels='9999', version=1):
+        if version != 1:
+            raise NotImplemented
+        if year is None:
+            year = datetime.now().year
+        if month is None:
+            month = datetime.now().month
         # step 1 - get form
         resp = self.br.open(JAMBERRY_TAR_URL)
         s = resp.soup.form
@@ -113,7 +116,7 @@ class JamberryWorkstation(Workstation):
             field_data(s, '__EVENTVALIDATION'),
             ('__EVENTTARGET', 'ctl00$contentMain$ddLevels'),
             ('ctl00$contentMain$ddMonth', str(year * 100 + month)),
-            ('ctl00$contentMain$ddLevels', 9999),
+            ('ctl00$contentMain$ddLevels', int(levels)),
         ))
         resp = self.br.post(JAMBERRY_TAR_URL, data=d)
         s = resp.soup.form
@@ -135,13 +138,14 @@ class JamberryWorkstation(Workstation):
         return resp.content
 
     def parse_tar(self):
-        tar_data = self.get_tar(2015, 3)  # todo: add current month logic
-        tar_file = StringIO(tar_data)
+        tar_data = self.get_tar()  # todo: add current month logic
+        tar_file = StringIO(tar_data.decode(encoding='utf-8'))
         results = []
         tar = DictReader(tar_file)
         for row in tar:
             consultant_dict = dict(
-                id=row['Email'],
+                id=row['User Id'],
+                downline_level=int(row['Downline Level']),
                 first_name=row['First Name'],
                 last_name=row['Last Name'],
                 sponsor_name=row['Sponsor'],
@@ -151,8 +155,9 @@ class JamberryWorkstation(Workstation):
                 address_line1=row['Address'],
                 address_city=row['City'],
                 address_state=row['State'],
-                address_zip=row['Zip'],
+                address_zip=row['ZIP'],
                 address_country=row['Country'],
+                team_manager=row['Upline Team Manager'],
                 start_date=datetime.strptime(row['Start Date'], '%b %d, %Y') + timedelta(hours=6),
             )
             if "In Progress" in row['Status']:
@@ -163,18 +168,18 @@ class JamberryWorkstation(Workstation):
                 status=status,
                 active_legs=int(row['Active Legs']),
                 highest_leg_rank_int=int(row['Highest Leg Rank'][:2]),
-                highest_leg_rank_name=row['Highest Leg Rank'[5:]],
+                highest_leg_rank_name=row['Highest Leg Rank'][5:],
                 pay_rank_int=row['Pay Rank'][:2],
                 pay_rank_name=row['Pay Rank'][5:],
-                career_title_int=row['Career Title'][:2],
-                career_title_name=row['Career Title'][5:],
-                prv=int(row['PRV'][1:]),
-                cv=int(row['CV'][1:]),
-                trv=int(row['TRV'][1:]),
-                drv=int(row['DRV'][1:]),
+                career_title_int=row['Recognition Title'][:2],
+                career_title_name=row['Recognition Title'][5:],
+                prv=currency_to_float(row['PRV']),
+                cv=currency_to_float(row['CV']),
+                trv=currency_to_float(row['TRV']),
+                drv=currency_to_float(row['DRV']),
                 sponsored_this_month=int(row['# Sponsored This Month']),
-                downline_count=int(row['# In Downline']),
-                last_login=datetime.strptime(row['Last Login'], '%m/%d/%Y %I:%H:%S %p')
+                downline_count=int(row['In Downline']),
+                last_login=None if row['Last Login'].strip() == '' else datetime.strptime(row['Last Login'], '%b %d, %Y')
             )
             results.append((consultant_dict, activity_report_line))
         return results
@@ -206,16 +211,15 @@ class JamberryWorkstation(Workstation):
                 retail_bonus=float(cols[10].text.strip().strip('$')),
             )
             try:
-                order_dict['detail_lines'] = self.parse_order_details(order_dict['id'])
+                order_dict['details'] = self.parse_order_details(order_dict['id'])
             except Exception as e:
                 pass
             orders.append(order_dict)
         return orders
 
-    def parse_orders(self):
-        order_data = self.get_orders()
-        orders = []
-        bs = BeautifulSoup(order_data)
+    def parsed_orders(self):
+        orders_html = self.get_orders()
+        bs = BeautifulSoup(orders_html)
         order_table = bs.find(id='ctl00_contentMain_dgAllOrders')
         headerRow = order_table.findChild('tr')
         for row in order_table.findAll('tr')[1:]:
@@ -245,21 +249,27 @@ class JamberryWorkstation(Workstation):
                 shipping_fee=float(row.find(text="Shipping:").next.strip().strip('$').strip(' USD')),
                 tax=float(row.find(text="Tax:").next.strip().strip('$').strip(' USD')),
                 total=float(row.find(text="Total:").next.strip().strip('$').strip(' USD')),
-                prv=float(row.find(text="PRV:").next.strip().strip('$').strip(' USD')),
+                prv=float(row.find(text="QV:").next.strip().strip('$').strip(' USD')),
                 status=row.find(text="Status: ").next.strip(),
             )
             row_find = row.find(text='Hostess: ')
-            if row_find: order_dict["hostess"] = row_find.next.strip()
+            if row_find:
+                order_dict["hostess"] = row_find.next.strip()
             row_find = row.find(text='Party: ')
-            if row_find: order_dict["party"] = row_find.next.strip()
+            if row_find:
+                order_dict["party"] = row_find.next.strip()
             row_find = row.find(text='Shipped On:')
-            if row_find: order_dict["ship_date"] = row_find.next.strip()
+            if row_find:
+                order_dict["ship_date"] = row_find.next.strip()
+            yield order_dict
+
+    def parsed_orders_with_details(self):
+        for order in self.parsed_orders():
             try:
-                order_dict['order_detail'] = self.parse_order_details(order_dict['id'])
+                order['order_detail'] = self.parse_order_details(order['id'])
             except Exception as e:
                 pass
-            orders.append(order_dict)
-        return orders
+            yield order
 
     def __del__(self):
         if self.logged_in:
@@ -268,22 +278,22 @@ class JamberryWorkstation(Workstation):
     def parse_order_details(self, id=None):
         if not id:
             return None
-        detail_data = self.get_detail(id)
-        bs = BeautifulSoup(detail_data)
-        table = bs.find(id='ctl00_main_dgMain')
-        rows = table.findAll('tr')[1:]  # skip header row
+        bs = self.get_detail(id)
+        line_items_table = bs.find(id='ctl00_main_dgMain')
+        line_items_rows = line_items_table.findAll('tr')[1:]  # skip header row
         lines = []
-        for row in rows:
+        for row in line_items_rows:
             cells = row.findAll('td')
             detail = dict(
                 sku=cells[0].text.strip(),
                 item_name=cells[1].text.strip(),
                 price=cells[2].text.strip(),
                 quantity=int(cells[3].text.strip()),
-                total=currency_to_float(cells[4].text.strip()),
+                total=currency_to_float(cells[4].text.strip().split('\n')[0]),
             )
             lines.append(detail)
-        return lines
+        address = '\n'.join(list(bs.find(text=re.compile('Address')).findNext('strong').stripped_strings))
+        return {'lines': lines, 'address': address}
 
     @requires_login
     def get_detail(self, id):
@@ -299,8 +309,7 @@ class JamberryWorkstation(Workstation):
                 print(e)
                 if tries == 3:
                     raise e
-
-        return resp.get_data()
+        return resp.soup
 
     @requires_login
     def create_tmp_search_cart_retail(self):
@@ -343,7 +352,7 @@ class JamberryWorkstation(Workstation):
         )
         json_cache = {}
         for k in search_keys:
-            payload = dict(defaults + (('q', k), ))
+            payload = dict(defaults + (('q', k),))
             resp = self.br.get(search_url, params=payload)
             json_cache[k] = resp.content
         return json_cache
