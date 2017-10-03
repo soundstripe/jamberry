@@ -3,7 +3,6 @@ from csv import DictReader
 from datetime import datetime, timedelta
 from functools import wraps
 from io import StringIO, BytesIO
-from time import sleep
 from urllib.parse import urljoin
 import re
 
@@ -46,11 +45,11 @@ class Workstation(ABC):
         return br
 
     def orders(self):
-        raw_orders = self.get_orders()
+        raw_orders = self.fetch_orders()
         yield from (order for order in self.parse_orders(raw_orders))
 
     @abstractmethod
-    def get_orders(self):
+    def fetch_orders(self):
         return ''
 
 
@@ -99,7 +98,7 @@ class JamberryWorkstation(Workstation):
         self._logged_in = False
 
     @requires_login
-    def get_tar(self, year=None, month=None, levels='9999', version=1):
+    def fetch_tar(self, year=None, month=None, levels='9999', version=1):
         if version != 1:
             raise NotImplemented
         if year is None:
@@ -133,12 +132,12 @@ class JamberryWorkstation(Workstation):
         return resp.content
 
     @requires_login
-    def get_orders(self):
+    def fetch_orders(self):
         resp = self.br.open(JAMBERRY_ORDERS_URL)
         return resp.content
 
     def parse_tar(self):
-        tar_data = self.get_tar()  # todo: add current month logic
+        tar_data = self.fetch_tar()  # todo: add current month logic
         tar_file = StringIO(tar_data.decode(encoding='utf-8'))
         results = []
         tar = DictReader(tar_file)
@@ -185,12 +184,12 @@ class JamberryWorkstation(Workstation):
         return results
 
     @requires_login
-    def get_archive_orders(self):
+    def fetch_archive_orders(self):
         resp = self.br.open(JAMBERRY_ORDERS_ARCHIVE_URL)
         return resp.content
 
     def parse_archive_orders(self):
-        order_data = self.get_archive_orders()
+        order_data = self.fetch_archive_orders()
         orders = []
         bs = BeautifulSoup(order_data)
         order_table = bs.find(id='ctl00_main_dgAllOrders')
@@ -218,7 +217,7 @@ class JamberryWorkstation(Workstation):
         return orders
 
     def parsed_orders(self):
-        orders_html = self.get_orders()
+        orders_html = self.fetch_orders()
         bs = BeautifulSoup(orders_html)
         order_table = bs.find(id='ctl00_contentMain_dgAllOrders')
         headerRow = order_table.findChild('tr')
@@ -278,7 +277,7 @@ class JamberryWorkstation(Workstation):
     def parse_order_details(self, id=None):
         if not id:
             return None
-        bs = self.get_detail(id)
+        bs = self.fetch_order_detail(id)
         line_items_table = bs.find(id='ctl00_main_dgMain')
         line_items_rows = line_items_table.findAll('tr')[1:]  # skip header row
         lines = []
@@ -296,7 +295,7 @@ class JamberryWorkstation(Workstation):
         return {'lines': lines, 'address': address}
 
     @requires_login
-    def get_detail(self, id):
+    def fetch_order_detail(self, id):
         br = self.br
         order_url = 'https://workstation.jamberrynails.net/associate/orders/OrderDetails.aspx?id=%s' % (id)
         tries = 0
@@ -341,7 +340,7 @@ class JamberryWorkstation(Workstation):
         self._cart_url = None
 
     @requires_login
-    def get_autocomplete(self, search_keys="aeiou"):
+    def fetch_autocomplete_json(self, search_keys="aeiou"):
         if self._cart_url is None:
             self.create_tmp_search_cart_retail()
         search_url = self._cart_url.replace('cart/display', 'search/products')

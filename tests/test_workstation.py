@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 @pytest.mark.usefixtures('ws')
 def test_get_tar(ws):
     t = datetime.now()
-    tar = ws.get_tar(t.year, t.month)
+    tar = ws.fetch_tar(t.year, t.month)
     assert ws.logged_in
     tar_buffer = StringIO(str(tar, encoding='utf8'))
     # next line will raise an exception if there is a problem
@@ -29,14 +29,14 @@ def test_login_logout(ws):
 
 @pytest.mark.usefixtures('ws')
 def test_get_orders(ws):
-    orders = ws.get_orders()
+    orders = ws.fetch_orders()
     assert ws.logged_in
     assert b'ctl00_contentMain_dgAllOrders' in orders
 
 
 @pytest.mark.usefixtures('ws')
 def test_get_archive_orders(ws):
-    orders = ws.get_archive_orders()
+    orders = ws.fetch_archive_orders()
     assert ws.logged_in
     soup = BeautifulSoup(orders)
     assert soup.find(id='ctl00_main_dgAllOrders') is not None
