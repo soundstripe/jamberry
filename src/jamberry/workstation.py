@@ -63,6 +63,8 @@ class JamberryWorkstation(Workstation):
     def __del__(self):
         if self._cart_url is not None:
             self.delete_tmp_search_cart_retail()
+        if self.logged_in:
+            self.logout()
 
     def login(self):
         if self.logged_in:
@@ -265,10 +267,6 @@ class JamberryWorkstation(Workstation):
             except Exception as e:
                 pass
             yield order
-
-    def __del__(self):
-        if self.logged_in:
-            self.logout()
 
     def parse_order_details(self, id=None):
         if not id:
