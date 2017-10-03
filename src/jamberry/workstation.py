@@ -134,7 +134,7 @@ class JamberryWorkstation(Workstation):
     @requires_login
     def fetch_orders(self):
         resp = self.br.open(JAMBERRY_ORDERS_URL)
-        return resp.content
+        return resp.soup
 
     def parse_tar(self):
         tar_data = self.fetch_tar()
@@ -186,12 +186,11 @@ class JamberryWorkstation(Workstation):
     @requires_login
     def fetch_archive_orders(self):
         resp = self.br.open(JAMBERRY_ORDERS_ARCHIVE_URL)
-        return resp.content
+        return resp.soup
 
     def parse_archive_orders(self):
-        order_data = self.fetch_archive_orders()
+        bs = self.fetch_archive_orders()
         orders = []
-        bs = BeautifulSoup(order_data)
         order_table = bs.find(id='ctl00_main_dgAllOrders')
         for row in order_table.findAll('tr')[1:]:
             cols = row.findAll('td')
@@ -217,10 +216,8 @@ class JamberryWorkstation(Workstation):
         return orders
 
     def parsed_orders(self):
-        orders_html = self.fetch_orders()
-        bs = BeautifulSoup(orders_html)
+        bs = self.fetch_orders()
         order_table = bs.find(id='ctl00_contentMain_dgAllOrders')
-        headerRow = order_table.findChild('tr')
         for row in order_table.findAll('tr')[1:]:
             customer_name = row.find(text="Placed By:").next.strip()
             customer_url = ''
@@ -232,7 +229,7 @@ class JamberryWorkstation(Workstation):
                 customer_id = customer_url.split('/')[-1]
                 try:
                     customer_contact = row.find(text="Contact: ").next.strip()
-                except Exception as e:
+                except AttributeError:
                     customer_contact = ''
             order_dict = dict(
                 id=row.td.a.text,
