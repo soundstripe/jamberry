@@ -137,7 +137,7 @@ class JamberryWorkstation(Workstation):
         return resp.content
 
     def parse_tar(self):
-        tar_data = self.fetch_tar()  # todo: add current month logic
+        tar_data = self.fetch_tar()
         tar_file = StringIO(tar_data.decode(encoding='utf-8'))
         results = []
         tar = DictReader(tar_file)
