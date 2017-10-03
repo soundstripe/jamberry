@@ -1,13 +1,12 @@
-from abc import abstractmethod, ABCMeta, ABC
+from abc import abstractmethod, ABC
 from csv import DictReader
 from datetime import datetime, timedelta
 from functools import wraps
-from io import StringIO, BytesIO
+from io import StringIO
 from urllib.parse import urljoin
 import re
 
 import mechanicalsoup
-from bs4 import BeautifulSoup
 
 from .util import currency_to_float
 
