@@ -28,18 +28,17 @@ def test_login_logout(ws):
 
 
 @pytest.mark.usefixtures('ws')
-def test_get_orders(ws):
+def test_fetch_orders(ws):
     orders = ws.fetch_orders()
     assert ws.logged_in
-    assert b'ctl00_contentMain_dgAllOrders' in orders
+    assert orders.find(id=b'ctl00_contentMain_dgAllOrders')
 
 
 @pytest.mark.usefixtures('ws')
-def test_get_archive_orders(ws):
+def test_fetch_archive_orders(ws):
     orders = ws.fetch_archive_orders()
     assert ws.logged_in
-    soup = BeautifulSoup(orders)
-    assert soup.find(id='ctl00_main_dgAllOrders') is not None
+    assert orders.find(id='ctl00_main_dgAllOrders') is not None
 
 
 @pytest.mark.usefixtures('ws')
@@ -54,13 +53,13 @@ def test_create_and_delete_tmp_search_cart_retail(ws):
 
 
 @pytest.mark.usefixtures('ws')
-def test_get_autocomplete(ws):
+def test_fetch_autocomplete(ws):
     pass
 
 
 @pytest.mark.usefixtures('ws')
-def test_parse_orders(ws):
-    parsed_orders = ws.parse_orders()
+def test_parsed_orders(ws):
+    parsed_orders = list(ws.parsed_orders())
     assert parsed_orders is not None
 
 
