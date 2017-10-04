@@ -1,5 +1,5 @@
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import StringIO
 import pytest
 from bs4 import BeautifulSoup
@@ -9,14 +9,24 @@ from bs4 import BeautifulSoup
 
 
 @pytest.mark.usefixtures('ws')
-def test_get_tar(ws):
-    t = datetime.now()
-    tar = ws.fetch_tar(t.year, t.month)
+def test_fetch_tar(ws):
+    # test fetching current TAR
+    tar = ws.fetch_tar()
     assert ws.logged_in
-    tar_buffer = StringIO(str(tar, encoding='utf8'))
+    tar_str = str(tar, encoding='utf8')
     # next line will raise an exception if there is a problem
-    tar_csv_dialect = csv.Sniffer().sniff(tar_buffer.read(1024))
+    tar_csv_dialect = csv.Sniffer().sniff(tar_str[:1024])
     assert tar_csv_dialect is not None
+
+    # test fetching last months TAR
+    t = datetime.now() - timedelta(weeks=35)
+    last_month_tar = ws.fetch_tar(year=t.year, month=t.month)
+    last_month_tar_str = str(last_month_tar, encoding='utf8')
+    tar_csv_dialect = csv.Sniffer().sniff(last_month_tar_str[:1024])
+    assert tar_csv_dialect is not None
+
+    # if they match, something is wrong with the date selector
+    assert tar_str != last_month_tar_str
 
 
 @pytest.mark.usefixtures('ws')
@@ -58,19 +68,55 @@ def test_fetch_autocomplete(ws):
 
 
 @pytest.mark.usefixtures('ws')
-def test_parsed_orders(ws):
-    parsed_orders = list(ws.parsed_orders())
-    assert parsed_orders is not None
+def test_orders(ws):
+    orders = list(ws.orders())
+    assert orders is not None
+
+
+@pytest.mark.usefixtures('ws', 'order_detail_html')
+def test_extract_shipping_address(ws, order_detail_html):
+    soup = BeautifulSoup(order_detail_html)
+    address = ws.extract_shipping_address(soup)
+    lines = address.split('\n')
+    assert lines[0] == '123 Somewhere St'
+    assert lines[1] == 'Somewhere, CA 12345-6789'
+
+
+@pytest.mark.usefixtures('ws', 'order_detail_html')
+def test_extract_line_items(ws, order_detail_html):
+    soup = BeautifulSoup(order_detail_html)
+    line_items = ws.extract_line_items(soup)
+    assert line_items[0].name == 'Crimson Crush'
+    assert line_items[0].quantity == 2
+    assert line_items[3].total == float(65)
 
 
 @pytest.mark.usefixtures('ws')
-def test_parse_order_detail(ws):
-    orders_iter = ws.parsed_orders()
-    order = next(orders_iter)
-    order_id = order['id']
-    parsed_details = ws.parse_order_details(order_id)
-    assert 'lines' in parsed_details
-    assert 'address' in parsed_details
+def test_downline_consultants(ws):
+    for consultant, activity in ws.downline_consultants():
+        assert consultant.id is not None
+        assert 'status' in activity
+
+@pytest.mark.usefixtures('ws', 'order_row_html')
+def test_parse_order_row(ws, order_row_html):
+    soup = BeautifulSoup(order_row_html).tr
+    order = ws.parse_order_row(soup)
+    assert order.id == '12345678'
+    assert order.customer_name == 'Foo Bar'
+    assert order.shipping_name == 'Foo Bar'
+    assert order.order_date == datetime(2017, 10, 1, 6, 0)
+    assert order.subtotal == float(15)
+    assert order.shipping_fee == 0
+    assert order.tax == 1.09
+    assert order.status == 'Shipped'
+    assert order.order_type == 'Party'
+    assert 'OrderDetails.aspx?id=12345678' in order.order_details_url
+    assert order.customer_id == '1234567'
+    assert order.total == 16.09
+    assert order.prv == 0
+    assert order.hostess == 'Foo Manchu'
+    assert order.party == 'What a Party!'
+    assert order.ship_date == datetime(2017, 10, 1)
 
 
 
