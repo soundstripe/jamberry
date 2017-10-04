@@ -15,7 +15,7 @@ class Order:
         'customer_id',
         'customer_contact',
         'total',
-        'prv',
+        'qv',
         'hostess',
         'party',
         'ship_date',

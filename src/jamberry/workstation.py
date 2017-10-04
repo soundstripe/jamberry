@@ -262,7 +262,7 @@ class JamberryWorkstation(Workstation):
         o.shipping_fee = float(row_soup.find(text="Shipping:").next.strip().strip('$').strip(' USD'))
         o.tax = float(row_soup.find(text="Tax:").next.strip().strip('$').strip(' USD'))
         o.total = float(row_soup.find(text="Total:").next.strip().strip('$').strip(' USD'))
-        o.prv = float(row_soup.find(text="QV:").next.strip().strip('$').strip(' USD'))
+        o.qv = float(row_soup.find(text="QV:").next.strip().strip('$').strip(' USD'))
         o.status = row_soup.find(text="Status: ").next.strip()
         row_find = row_soup.find(text=re.compile('Hostess:'))
         if row_find:
