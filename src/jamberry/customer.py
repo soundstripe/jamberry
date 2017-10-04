@@ -1,0 +1,22 @@
+class Customer:
+    __slots__ = (
+        'id',
+        'name',
+        'address_line_1',
+        'address_line_2',
+        'address_city',
+        'address_state',
+        'address_zip',
+        'address_country',
+        'type',
+        'first_purchase_date',
+        'last_purchase_date',
+        'sponsor_rv',
+        'sponsor_qv',
+        'other_rv',
+        'other_qv',
+        'email',
+        'phone',
+        'birthdate',
+        'original_consultant',
+    )

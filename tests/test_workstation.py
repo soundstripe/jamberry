@@ -113,10 +113,17 @@ def test_parse_order_row(ws, order_row_html):
     assert 'OrderDetails.aspx?id=12345678' in order.order_details_url
     assert order.customer_id == '1234567'
     assert order.total == 16.09
-    assert order.prv == 0
+    assert order.qv == 0
     assert order.hostess == 'Foo Manchu'
     assert order.party == 'What a Party!'
     assert order.ship_date == datetime(2017, 10, 1)
+
+
+@pytest.mark.usefixtures('ws', 'order_row_html')
+def test_customers(ws):
+    for customer in ws.customers():
+        assert customer.name is not None
+
 
 
 

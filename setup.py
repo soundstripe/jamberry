@@ -9,6 +9,6 @@ setup(
     description='Access your own Jamberry consultant data via python',
     license='MIT',
     keywords='jamberry api',
-    install_requires=['mechanicalsoup', 'beautifulsoup4'],
+    install_requires=['mechanicalsoup', 'beautifulsoup4', 'python-dateutil'],
     tests_require=['pytest'],
 )

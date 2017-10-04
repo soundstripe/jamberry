@@ -1,3 +1,4 @@
+import json
 from abc import abstractmethod, ABC
 from csv import DictReader
 from datetime import datetime, timedelta
@@ -7,7 +8,9 @@ from urllib.parse import urljoin
 import re
 
 import mechanicalsoup
+import dateutil.parser
 
+from .customer import Customer
 from .util import currency_to_decimal
 from .consultant import Consultant
 from .order import Order, OrderLineItem
@@ -19,10 +22,11 @@ JAMBERRY_LOGOUT_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'login/logout.aspx')
 JAMBERRY_TAR_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'associate/commissions/Activity.aspx')
 JAMBERRY_ORDERS_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'associate/orders/')
 JAMBERRY_ORDERS_ARCHIVE_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'associate/orders/Archive.aspx')
-JAMBERRY_CUSTOMERS_CSV_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'associate/associates/ExportClientAngelForm.aspx')
+JAMBERRY_CUSTOMER_ANGEL_CSV_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'associate/associates/ExportClientAngelForm.aspx')
 JAMBERRY_VIEW_CARTS_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'us/en/wscart')
 JAMBERRY_CREATE_NEW_RETAIL_CART_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'us/en/wscart/cart/new?cartType=2')
 JAMBERRY_CREATE_NEW_RETAIL_CART_POST_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'us/en/wscart/cart/saveCart')
+JAMBERRY_API_CUSTOMER_VOLUME_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'api/reporting/v1/consultant/{}/customers/volume')
 
 
 def field_data(soup, name):
@@ -71,6 +75,7 @@ class JamberryWorkstation(Workstation):
         self.password = password
         self._cart_url = None
         self._logged_in = False
+        self._consultant_id = None
 
     def __del__(self):
         if self._cart_url is not None:
@@ -99,6 +104,9 @@ class JamberryWorkstation(Workstation):
         if '/login' in resp.url:
             raise Exception("login verification failed")
         else:
+            id_regex = re.compile(r'\(ID# (\d+)\)')
+            id_str = resp.soup.find(text=id_regex)
+            self._consultant_id = id_regex.match(id_str).groups()[0]
             self._logged_in = True
 
     @property
@@ -109,12 +117,13 @@ class JamberryWorkstation(Workstation):
         self.br.get(JAMBERRY_LOGOUT_URL)
         self.br = Workstation.init_browser()
         self._logged_in = False
+        self._consultant_id = None
 
     def downline_consultants(self):
         return self.parse_tar(self.fetch_tar())
 
     def customers(self):
-        return self.parse_customers_csv(self.fetch_customers_csv())
+        return self.parse_customer_volume_json(self.fetch_customer_volume_json())
 
     def orders(self):
         yield from self.parsed_orders(self.fetch_orders())
@@ -160,17 +169,56 @@ class JamberryWorkstation(Workstation):
         return resp.soup
 
     @requires_login
-    def fetch_customers_csv(self):
-        resp = self.br.open(JAMBERRY_CUSTOMERS_CSV_URL)
+    def fetch_customer_angel_csv(self):
+        resp = self.br.open(JAMBERRY_CUSTOMER_ANGEL_CSV_URL)
         return resp.content
 
-    def parse_customers_csv(self, customers_csv_data):
-        with StringIO(customers_csv_data.decode(encoding='utf-8')) as customers_csv_file:
+    def parse_customer_angel_csv(self, customers_angel_csv_data):
+        with StringIO(customers_angel_csv_data.decode(encoding='utf-8')) as customers_csv_file:
             customers = DictReader(customers_csv_file)
             for row in customers:
-                customer_dict = dict(
-                    id=row['']
-                )
+                c = Customer()
+                c.name = row['nameFirst'] + " " + row['nameLast']
+                c.address_line_1 = row['Address1']
+                c.address_line_2 = row['Address2']
+                c.address_city = row['City']
+                c.address_state = row['State']
+                c.address_zip = row['Zip']
+                c.email = row['Email']
+                c.phone = row['phone']
+                c.birthdate = datetime.strptime(row['birthdate'], '%m/%d/%Y')
+                c.last_purchase_date = dateutil.parser.parse(row['trans1'])
+                yield c
+
+    @requires_login
+    def fetch_customer_volume_json(self):
+        resp = self.br.open(JAMBERRY_API_CUSTOMER_VOLUME_URL.format(self._consultant_id))
+        return resp.content
+
+    def parse_customer_volume_json(self, data):
+        j = json.loads(data)
+        yield from (self.parse_json_customer_row(row) for row in j['rows'])
+
+    def parse_json_customer_row(self, row):
+        c = Customer()
+        c.id = row['userId']
+        c.name = row['name']
+        c.address_line_1 = row['address1']
+        c.address_line_2 = row['address2']
+        c.address_city = row['city']
+        c.address_state = row['state']
+        c.address_zip = row['zip']
+        c.address_country = row['country']
+        c.phone = row['phone']
+        c.type = row['customerType']
+        c.first_purchase_date = dateutil.parser.parse(row['firstPurchase'])
+        c.last_purchase_date = dateutil.parser.parse(row['lastPurchase'])
+        c.sponsor_qv = row['sponsorQV']
+        c.sponsor_rv = row['sponsorRV']
+        c.other_qv = row['otherQV']
+        c.other_rv = row['otherRV']
+        c.original_consultant = row['origConsultant']
+        return c
 
     def parse_tar(self, tar_data):
         tar_file = StringIO(tar_data.decode(encoding='utf-8'))
