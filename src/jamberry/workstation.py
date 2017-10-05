@@ -93,11 +93,11 @@ def parse_team_activity_row(row):
     a.last_login = dateutil.parser.parse(row['Last Login']) if len(row['Last Login']) else ''
     a.title = row['Title']
     a.pay_title = row['Pay Title']
-    a.rv = row['RV']
-    a.qv = row['QV']
-    a.cv = row['CV']
-    a.tqv = row['TQV']
-    a.dqv = row['DQV']
+    a.rv = currency_to_decimal(row['RV'])
+    a.qv = currency_to_decimal(row['QV'])
+    a.cv = currency_to_decimal(row['CV'])
+    a.tqv = currency_to_decimal(row['TQV'])
+    a.dqv = currency_to_decimal(row['DQV'])
     a.active_legs = row['Active Legs']
     a.new_recruits = row['Recruits']
     a.style_vips = row['SVIPs']
