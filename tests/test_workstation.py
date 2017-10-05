@@ -3,8 +3,9 @@ from datetime import datetime, timedelta
 import pytest
 from bs4 import BeautifulSoup
 
-import logging
-logging.basicConfig(level=logging.DEBUG)
+# uncomment these lines to see requests
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
 
 
 @pytest.mark.usefixtures('ws')
