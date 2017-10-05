@@ -1,10 +1,11 @@
 import json
 from abc import abstractmethod, ABC
+from collections import OrderedDict
 from csv import DictReader
 from datetime import datetime, timedelta
 from functools import wraps
 from io import StringIO
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlencode
 import re
 
 import mechanicalsoup
@@ -12,7 +13,7 @@ import dateutil.parser
 
 from .customer import Customer
 from .util import currency_to_decimal
-from .consultant import Consultant
+from .consultant import Consultant, ConsultantActivityRecord
 from .order import Order, OrderLineItem
 
 
@@ -27,6 +28,7 @@ JAMBERRY_VIEW_CARTS_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'us/en/wscart')
 JAMBERRY_CREATE_NEW_RETAIL_CART_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'us/en/wscart/cart/new?cartType=2')
 JAMBERRY_CREATE_NEW_RETAIL_CART_POST_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'us/en/wscart/cart/saveCart')
 JAMBERRY_API_CUSTOMER_VOLUME_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'api/reporting/v1/consultant/{}/customers/volume')
+JAMBERRY_API_TEAM_ACTIVITY_REPORT_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'api/consultant/{}/team/activity/csv')
 
 
 def field_data(soup, name):
@@ -50,8 +52,9 @@ class Workstation(ABC):
     @classmethod
     def init_browser(cls):
         br = mechanicalsoup.StatefulBrowser()
-        br.addheaders = [('User-agent'
-                          'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36')]
+        br.session.headers.update({
+            'User-agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36',
+        })
         return br
 
     @abstractmethod
@@ -120,7 +123,7 @@ class JamberryWorkstation(Workstation):
         self._consultant_id = None
 
     def downline_consultants(self):
-        return self.parse_tar(self.fetch_tar())
+        return self.parse_tar_csv(self.fetch_tar())
 
     def customers(self):
         return self.parse_customer_volume_json(self.fetch_customer_volume_json())
@@ -130,37 +133,23 @@ class JamberryWorkstation(Workstation):
         yield from self.parse_archive_orders()
 
     @requires_login
-    def fetch_tar(self, year=None, month=None, levels='9999', version=1):
-        if version != 1:
-            raise NotImplemented
+    def fetch_tar(self, year=None, month=None, levels='9999'):
         if year is None:
             year = datetime.now().year
         if month is None:
             month = datetime.now().month
-        # step 1 - get form
-        resp = self.br.open(JAMBERRY_TAR_URL)
-        s = resp.soup.form
-        # step 2 - set ddLevels (requires a post)
-        d = dict((
-            field_data(s, '__VIEWSTATE'),
-            field_data(s, '__VIEWSTATEGENERATOR'),
-            field_data(s, '__EVENTVALIDATION'),
-            ('__EVENTTARGET', 'ctl00$contentMain$ddLevels'),
-            ('ctl00$contentMain$ddMonth', str(year * 100 + month)),
-            ('ctl00$contentMain$ddLevels', int(levels)),
-        ))
-        resp = self.br.post(JAMBERRY_TAR_URL, data=d)
-        s = resp.soup.form
-        # step 3 - retrieve tar csv response
-        d = dict((
-            field_data(s, '__VIEWSTATE'),
-            field_data(s, '__VIEWSTATEGENERATOR'),
-            field_data(s, '__EVENTVALIDATION'),
-            ('ctl00$contentMain$ddMonth', str(year * 100 + month)),
-            ('ctl00$contentMain$ddLevels', 9999),
-            ('ctl00$contentMain$rgActivity$ctl00$ctl02$ctl00$ExportToCsvButton', ''),
-        ))
-        resp = self.br.post(JAMBERRY_TAR_URL, data=d)
+        filter_data = OrderedDict(
+            sort='-start',
+            filter='level|between|1|{}'.format(levels),
+            period=year*100 + month,  # YYYYMM
+            region='US',
+            lang='en',
+            start=0,
+            trans='CompRank_AdvancedConsultant|Advanced Consultant,CompRank_Consultant|Consultant,CompRank_SeniorConsultant|Senior Consultant,CompRank_LeadConsultant|Lead Consultant,CompRank_TeamManager|Team Manager,CompRank_SeniorTeamManager|Senior Team Manager,CompRank_PremierConsultant|Premier Consultant,CompRank_SeniorLeadConsultant|Senior Lead Consultant,CompRank_Executive|Executive,CompRank_SeniorExecutive|Senior Executive,CompRank_LeadExecutive|Lead Executive,CompRank_EliteExecutive|Elite Executive,ProfessionalConsultant|Professional Consultant,Hobbyist|Hobbyist,FastStart|Fast Start,Active|Active,In Progress|In Progress,generation|GEN,level|DLL,contact|Contact,firstName|First,lastName|Last,email|Email,phone|Phone,address|Address,city|City,state|State,zip|ZIP,country|Country,conference|Attending Conference,start|Enrollment,status|Status,login|Last Login,type|Type,title|Title,pay|Pay Title,prv|RV,qv|QV,pcv|CV,trv|TQV,drv|DQV,active|Active Legs,sponsored|Recruits,svip|SVIPs,downline|Organization Total,tripPts|Trip,manager|Team Manager,sponsor|Sponsor,sponsorEmail|Sponsor Email'
+        )
+        #url = JAMBERRY_API_TEAM_ACTIVITY_REPORT_URL.format(self._consultant_id) + '?' + urlencode(filter_data)
+        resp = self.br.get(JAMBERRY_API_TEAM_ACTIVITY_REPORT_URL.format(self._consultant_id), params=filter_data)
+        #resp = self.br.get(url)
         return resp.content
 
     @requires_login
@@ -220,50 +209,50 @@ class JamberryWorkstation(Workstation):
         c.original_consultant = row['origConsultant']
         return c
 
-    def parse_tar(self, tar_data):
+    def parse_tar_csv(self, tar_data):
         tar_file = StringIO(tar_data.decode(encoding='utf-8'))
         results = []
         tar = DictReader(tar_file)
         for row in tar:
             c = Consultant()
-            c.id = row['User Id']
-            c.downline_level = int(row['Downline Level'])
-            c.first_name = row['First Name']
-            c.last_name = row['Last Name']
-            c.sponsor_name = row['Sponsor']
-            c.sponsor_email = row['Sponsor Email']
-            c.consultant_type = row['Type']
+            c.id = row['Contact']
+            c.downline_level = int(row['DLL'])
+            c.first_name = row['First']
+            c.last_name = row['Last']
+            c.email = row['Email']
             c.phone = row['Phone']
             c.address_line1 = row['Address']
             c.address_city = row['City']
             c.address_state = row['State']
             c.address_zip = row['ZIP']
             c.address_country = row['Country']
-            c.team_manager = row['Upline Team Manager']
-            c.start_date = datetime.strptime(row['Start Date'], '%b %d, %Y') + timedelta(hours=6)
-            
-            if "In Progress" in row['Status']:
-                status = False
-            else:
-                status = True
-            activity_report_line = dict(
-                status=status,
-                active_legs=int(row['Active Legs']),
-                highest_leg_rank_int=int(row['Highest Leg Rank'][:2]),
-                highest_leg_rank_name=row['Highest Leg Rank'][5:],
-                pay_rank_int=row['Pay Rank'][:2],
-                pay_rank_name=row['Pay Rank'][5:],
-                career_title_int=row['Recognition Title'][:2],
-                career_title_name=row['Recognition Title'][5:],
-                prv=currency_to_decimal(row['PRV']),
-                cv=currency_to_decimal(row['CV']),
-                trv=currency_to_decimal(row['TRV']),
-                drv=currency_to_decimal(row['DRV']),
-                sponsored_this_month=int(row['# Sponsored This Month']),
-                downline_count=int(row['In Downline']),
-                last_login=None if row['Last Login'].strip() == '' else datetime.strptime(row['Last Login'], '%b %d, %Y'),
-            )
-            results.append((c, activity_report_line))
+            c.start_date = dateutil.parser.parse(row['Enrollment']) if len(row['Enrollment']) else ''
+            c.consultant_type = row['Type']
+
+            a = ConsultantActivityRecord()
+            a.timestamp = datetime.now()
+            a.generation = row['GEN']
+            a.attending_conference = row['Attending Conference']
+            a.status = row['Status']
+            a.last_login = dateutil.parser.parse(row['Last Login']) if len(row['Last Login']) else ''
+            a.title = row['Title']
+            a.pay_title = row['Pay Title']
+            a.rv = row['RV']
+            a.qv = row['QV']
+            a.cv = row['CV']
+            a.tqv = row['TQV']
+            a.dqv = row['DQV']
+            a.active_legs = row['Active Legs']
+            a.new_recruits = row['Recruits']
+            a.style_vips = row['SVIPs']
+            a.total_downline = row['Organization Total']
+            a.trip_points = row['Trip']
+            a.team_manager = row['Team Manager']
+            a.sponsor_name = row['Sponsor']
+            a.sponsor_email = row['Sponsor Email']
+            a.highest_title = row['highest']
+
+            results.append((c, a))
         return results
 
     @requires_login

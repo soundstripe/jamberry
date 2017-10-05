@@ -1,11 +1,10 @@
 import csv
 from datetime import datetime, timedelta
-from io import StringIO
 import pytest
 from bs4 import BeautifulSoup
 
-# import logging
-# logging.basicConfig(level=logging.DEBUG)
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 
 @pytest.mark.usefixtures('ws')
@@ -14,15 +13,17 @@ def test_fetch_tar(ws):
     tar = ws.fetch_tar()
     assert ws.logged_in
     tar_str = str(tar, encoding='utf8')
+    i = tar_str.find('\n', 0, 1024)
     # next line will raise an exception if there is a problem
-    tar_csv_dialect = csv.Sniffer().sniff(tar_str[:1024])
+    tar_csv_dialect = csv.Sniffer().sniff(tar_str[:i])
     assert tar_csv_dialect is not None
 
     # test fetching last months TAR
     t = datetime.now() - timedelta(weeks=35)
     last_month_tar = ws.fetch_tar(year=t.year, month=t.month)
     last_month_tar_str = str(last_month_tar, encoding='utf8')
-    tar_csv_dialect = csv.Sniffer().sniff(last_month_tar_str[:1024])
+    i = last_month_tar_str.find('\n', 0, 1024)
+    tar_csv_dialect = csv.Sniffer().sniff(last_month_tar_str[:i])
     assert tar_csv_dialect is not None
 
     # if they match, something is wrong with the date selector
@@ -95,7 +96,7 @@ def test_extract_line_items(ws, order_detail_html):
 def test_downline_consultants(ws):
     for consultant, activity in ws.downline_consultants():
         assert consultant.id is not None
-        assert 'status' in activity
+        assert activity.timestamp is not None
 
 @pytest.mark.usefixtures('ws', 'order_row_html')
 def test_parse_order_row(ws, order_row_html):
@@ -119,7 +120,7 @@ def test_parse_order_row(ws, order_row_html):
     assert order.ship_date == datetime(2017, 10, 1)
 
 
-@pytest.mark.usefixtures('ws', 'order_row_html')
+@pytest.mark.usefixtures('ws')
 def test_customers(ws):
     for customer in ws.customers():
         assert customer.name is not None
