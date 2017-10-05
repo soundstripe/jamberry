@@ -115,7 +115,7 @@ def test_parse_order_row(order_row_html):
     assert order.tax == 1.09
     assert order.status == 'Shipped'
     assert order.order_type == 'Party'
-    assert 'OrderDetails.aspx?id=12345678' in order.order_details_url
+    assert order.order_details_url == 'OrderDetails.aspx?id=12345678'
     assert order.customer_id == '1234567'
     assert order.total == 16.09
     assert order.qv == 0

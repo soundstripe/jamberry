@@ -16,20 +16,6 @@ from .consultant import Consultant, ConsultantActivityRecord
 from .order import Order, OrderLineItem
 
 
-JAMBERRY_WORKSTATION_URL = 'https://workstation.jamberry.com'
-JAMBERRY_LOGIN_URL = urljoin(JAMBERRY_WORKSTATION_URL, '')
-JAMBERRY_LOGOUT_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'login/logout.aspx')
-JAMBERRY_TAR_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'associate/commissions/Activity.aspx')
-JAMBERRY_ORDERS_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'associate/orders/')
-JAMBERRY_ORDERS_ARCHIVE_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'associate/orders/Archive.aspx')
-JAMBERRY_CUSTOMER_ANGEL_CSV_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'associate/associates/ExportClientAngelForm.aspx')
-JAMBERRY_VIEW_CARTS_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'us/en/wscart')
-JAMBERRY_CREATE_NEW_RETAIL_CART_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'us/en/wscart/cart/new?cartType=2')
-JAMBERRY_CREATE_NEW_RETAIL_CART_POST_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'us/en/wscart/cart/saveCart')
-JAMBERRY_API_CUSTOMER_VOLUME_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'api/reporting/v1/consultant/{}/customers/volume')
-JAMBERRY_API_TEAM_ACTIVITY_REPORT_URL = urljoin(JAMBERRY_WORKSTATION_URL, 'api/consultant/{}/team/activity/csv')
-
-
 def field_data(soup, name):
     return name, soup.find('input', attrs=dict(name=name)).get('value')
 
@@ -157,7 +143,7 @@ def parse_order_row_soup(row_soup):
     o.id = row_soup.td.a.text
     o.order_type = row_soup.find(text="Type:").next.strip()
     o.order_date = datetime.strptime(row_soup.td.nextSibling.a.text, '%b %d, %Y') + timedelta(hours=6)
-    o.order_details_url = JAMBERRY_ORDERS_URL + row_soup.td.a['href']
+    o.order_details_url = row_soup.td.a['href']
     o.shipping_name = row_soup.find(text="Shipped To:").next.strip()
     o.subtotal = float(row_soup.find(text="Subtotal:").next.strip().strip('$').strip(' USD'))
     o.shipping_fee = float(row_soup.find(text="Shipping:").next.strip().strip('$').strip(' USD'))
@@ -236,6 +222,8 @@ class JamberryWorkstation(Workstation):
         self._cart_url = None
         self._logged_in = False
         self._consultant_id = None
+        self.workstation_url = 'https://workstation.jamberry.com'
+        self.urls = self.init_urls()
 
     def __del__(self):
         if self._cart_url is not None:
@@ -243,11 +231,29 @@ class JamberryWorkstation(Workstation):
         if self.logged_in:
             self.logout()
 
+    def init_urls(self):
+        urls = dict(
+            JAMBERRY_LOGIN_URL=urljoin(self.workstation_url, ''),
+            JAMBERRY_LOGOUT_URL=urljoin(self.workstation_url, 'login/logout.aspx'),
+            JAMBERRY_TAR_URL=urljoin(self.workstation_url, 'associate/commissions/Activity.aspx'),
+            JAMBERRY_ORDERS_URL=urljoin(self.workstation_url, 'associate/orders/'),
+            JAMBERRY_ORDERS_ARCHIVE_URL=urljoin(self.workstation_url, 'associate/orders/Archive.aspx'),
+            JAMBERRY_CUSTOMER_ANGEL_CSV_URL=urljoin(self.workstation_url,
+                                                    'associate/associates/ExportClientAngelForm.aspx'),
+            JAMBERRY_VIEW_CARTS_URL=urljoin(self.workstation_url, 'us/en/wscart'),
+            JAMBERRY_CREATE_NEW_RETAIL_CART_URL=urljoin(self.workstation_url, 'us/en/wscart/cart/new?cartType=2'),
+            JAMBERRY_CREATE_NEW_RETAIL_CART_POST_URL=urljoin(self.workstation_url, 'us/en/wscart/cart/saveCart'),
+            JAMBERRY_API_CUSTOMER_VOLUME_URL=urljoin(self.workstation_url,
+                                                     'api/reporting/v1/consultant/{}/customers/volume'),
+            JAMBERRY_API_TEAM_ACTIVITY_REPORT_URL=urljoin(self.workstation_url, 'api/consultant/{}/team/activity/csv'),
+        )
+        return urls
+
     def login(self):
         if self.logged_in:
             return
         br = self.br
-        br.open(JAMBERRY_LOGIN_URL)
+        br.open(self.urls['JAMBERRY_LOGIN_URL'])
         br.select_form("form#Form1")
         credentials = {
             'username': self.username,
@@ -274,7 +280,7 @@ class JamberryWorkstation(Workstation):
         return self._logged_in
 
     def logout(self):
-        self.br.get(JAMBERRY_LOGOUT_URL)
+        self.br.get(self.urls['JAMBERRY_LOGOUT_URL'])
         self.br = Workstation.init_browser()
         self._logged_in = False
         self._consultant_id = None
@@ -332,33 +338,36 @@ class JamberryWorkstation(Workstation):
         filter_data = OrderedDict(
             sort='-start',
             filter='level|between|1|{}'.format(levels),
-            period=year*100 + month,  # YYYYMM
+            period=year * 100 + month,  # YYYYMM
             region='US',
             lang='en',
             start=0,
             trans='CompRank_AdvancedConsultant|Advanced Consultant,CompRank_Consultant|Consultant,CompRank_SeniorConsultant|Senior Consultant,CompRank_LeadConsultant|Lead Consultant,CompRank_TeamManager|Team Manager,CompRank_SeniorTeamManager|Senior Team Manager,CompRank_PremierConsultant|Premier Consultant,CompRank_SeniorLeadConsultant|Senior Lead Consultant,CompRank_Executive|Executive,CompRank_SeniorExecutive|Senior Executive,CompRank_LeadExecutive|Lead Executive,CompRank_EliteExecutive|Elite Executive,ProfessionalConsultant|Professional Consultant,Hobbyist|Hobbyist,FastStart|Fast Start,Active|Active,In Progress|In Progress,generation|GEN,level|DLL,contact|Contact,firstName|First,lastName|Last,email|Email,phone|Phone,address|Address,city|City,state|State,zip|ZIP,country|Country,conference|Attending Conference,start|Enrollment,status|Status,login|Last Login,type|Type,title|Title,pay|Pay Title,prv|RV,qv|QV,pcv|CV,trv|TQV,drv|DQV,active|Active Legs,sponsored|Recruits,svip|SVIPs,downline|Organization Total,tripPts|Trip,manager|Team Manager,sponsor|Sponsor,sponsorEmail|Sponsor Email'
         )
-        resp = self.br.get(JAMBERRY_API_TEAM_ACTIVITY_REPORT_URL.format(self._consultant_id), params=filter_data)
+        resp = self.br.get(
+            self.urls['JAMBERRY_API_TEAM_ACTIVITY_REPORT_URL'].format(self._consultant_id),
+            params=filter_data
+        )
         return resp.content
 
     @requires_login
     def fetch_orders(self):
-        resp = self.br.open(JAMBERRY_ORDERS_URL)
+        resp = self.br.open(self.urls['JAMBERRY_ORDERS_URL'])
         return resp.soup.find(id='ctl00_contentMain_dgAllOrders')
 
     @requires_login
     def fetch_customer_angel_csv(self):
-        resp = self.br.open(JAMBERRY_CUSTOMER_ANGEL_CSV_URL)
+        resp = self.br.open(self.urls['JAMBERRY_CUSTOMER_ANGEL_CSV_URL'])
         return resp.content
 
     @requires_login
     def fetch_customer_volume_json(self):
-        resp = self.br.open(JAMBERRY_API_CUSTOMER_VOLUME_URL.format(self._consultant_id))
+        resp = self.br.open(self.urls['JAMBERRY_API_CUSTOMER_VOLUME_URL'].format(self._consultant_id))
         return resp.content
 
     @requires_login
     def fetch_archive_orders(self):
-        resp = self.br.open(JAMBERRY_ORDERS_ARCHIVE_URL)
+        resp = self.br.open(self.urls['JAMBERRY_ORDERS_ARCHIVE_URL'])
         return resp.soup.find(id='ctl00_main_dgAllOrders')
 
     @requires_login
@@ -370,8 +379,8 @@ class JamberryWorkstation(Workstation):
 
     @requires_login
     def create_tmp_search_cart_retail(self):
-        self.br.open(JAMBERRY_VIEW_CARTS_URL)  # Shop
-        self.br.open(JAMBERRY_CREATE_NEW_RETAIL_CART_URL)  # New Cart (retail)
+        self.br.open(self.urls['JAMBERRY_VIEW_CARTS_URL'])  # Shop
+        self.br.open(self.urls['JAMBERRY_CREATE_NEW_RETAIL_CART_URL'])  # New Cart (retail)
         form_data = dict(
             cartType='2',
             label='tmpSearchRetail',
@@ -386,7 +395,7 @@ class JamberryWorkstation(Workstation):
             country='US',
             phoneNumber='4045551212',
         )
-        resp = self.br.post(JAMBERRY_CREATE_NEW_RETAIL_CART_POST_URL, data=form_data)
+        resp = self.br.post(self.urls['JAMBERRY_CREATE_NEW_RETAIL_CART_POST_URL'], data=form_data)
         self._cart_url = resp.url
 
     @requires_login
