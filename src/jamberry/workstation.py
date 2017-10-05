@@ -4,7 +4,6 @@ from collections import OrderedDict
 from csv import DictReader
 from datetime import datetime, timedelta
 from functools import wraps
-from io import StringIO
 from urllib.parse import urljoin, urlencode
 import re
 
@@ -163,21 +162,20 @@ class JamberryWorkstation(Workstation):
         return resp.content
 
     def parse_customer_angel_csv(self, customers_angel_csv_data):
-        with StringIO(customers_angel_csv_data.decode(encoding='utf-8')) as customers_csv_file:
-            customers = DictReader(customers_csv_file)
-            for row in customers:
-                c = Customer()
-                c.name = row['nameFirst'] + " " + row['nameLast']
-                c.address_line_1 = row['Address1']
-                c.address_line_2 = row['Address2']
-                c.address_city = row['City']
-                c.address_state = row['State']
-                c.address_zip = row['Zip']
-                c.email = row['Email']
-                c.phone = row['phone']
-                c.birthdate = datetime.strptime(row['birthdate'], '%m/%d/%Y')
-                c.last_purchase_date = dateutil.parser.parse(row['trans1'])
-                yield c
+        customers = DictReader(customers_angel_csv_data.decode(encoding='utf-8').splitlines())
+        for row in customers:
+            c = Customer()
+            c.name = row['nameFirst'] + " " + row['nameLast']
+            c.address_line_1 = row['Address1']
+            c.address_line_2 = row['Address2']
+            c.address_city = row['City']
+            c.address_state = row['State']
+            c.address_zip = row['Zip']
+            c.email = row['Email']
+            c.phone = row['phone']
+            c.birthdate = datetime.strptime(row['birthdate'], '%m/%d/%Y')
+            c.last_purchase_date = dateutil.parser.parse(row['trans1'])
+            yield c
 
     @requires_login
     def fetch_customer_volume_json(self):
@@ -210,9 +208,7 @@ class JamberryWorkstation(Workstation):
         return c
 
     def parse_tar_csv(self, tar_data):
-        tar_file = StringIO(tar_data.decode(encoding='utf-8'))
-        results = []
-        tar = DictReader(tar_file)
+        tar = DictReader(tar_data.decode(encoding='utf-8').splitlines())
         for row in tar:
             c = Consultant()
             c.id = row['Contact']
@@ -252,8 +248,7 @@ class JamberryWorkstation(Workstation):
             a.sponsor_email = row['Sponsor Email']
             a.highest_title = row['highest']
 
-            results.append((c, a))
-        return results
+            yield (c, a)
 
     @requires_login
     def fetch_archive_orders(self):
