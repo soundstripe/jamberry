@@ -44,6 +44,164 @@ def requires_login(f):
     return wrapper
 
 
+# noinspection PyDunderSlots
+def customer_from_row(row):
+    c = Customer()
+    c.id = row['userId']
+    c.name = row['name']
+    c.address_line_1 = row['address1']
+    c.address_line_2 = row['address2']
+    c.address_city = row['city']
+    c.address_state = row['state']
+    c.address_zip = row['zip']
+    c.address_country = row['country']
+    c.phone = row['phone']
+    c.type = row['customerType']
+    c.first_purchase_date = dateutil.parser.parse(row['firstPurchase'])
+    c.last_purchase_date = dateutil.parser.parse(row['lastPurchase'])
+    c.sponsor_qv = row['sponsorQV']
+    c.sponsor_rv = row['sponsorRV']
+    c.other_qv = row['otherQV']
+    c.other_rv = row['otherRV']
+    c.original_consultant = row['origConsultant']
+    return c
+
+
+def parse_customer_angel_row(row):
+    c = Customer()
+    c.name = row['nameFirst'] + " " + row['nameLast']
+    c.address_line_1 = row['Address1']
+    c.address_line_2 = row['Address2']
+    c.address_city = row['City']
+    c.address_state = row['State']
+    c.address_zip = row['Zip']
+    c.email = row['Email']
+    c.phone = row['phone']
+    c.birthdate = datetime.strptime(row['birthdate'], '%m/%d/%Y')
+    c.last_purchase_date = dateutil.parser.parse(row['trans1'])
+    return c
+
+
+# noinspection PyDunderSlots
+def parse_team_activity_row(row):
+    c = Consultant()
+    c.id = row['Contact']
+    c.downline_level = int(row['DLL'])
+    c.first_name = row['First']
+    c.last_name = row['Last']
+    c.email = row['Email']
+    c.phone = row['Phone']
+    c.address_line1 = row['Address']
+    c.address_city = row['City']
+    c.address_state = row['State']
+    c.address_zip = row['ZIP']
+    c.address_country = row['Country']
+    c.start_date = dateutil.parser.parse(row['Enrollment']) if len(row['Enrollment']) else ''
+    c.consultant_type = row['Type']
+
+    a = ConsultantActivityRecord()
+    a.timestamp = datetime.now()
+    a.generation = row['GEN']
+    a.attending_conference = row['Attending Conference']
+    a.status = row['Status']
+    a.last_login = dateutil.parser.parse(row['Last Login']) if len(row['Last Login']) else ''
+    a.title = row['Title']
+    a.pay_title = row['Pay Title']
+    a.rv = row['RV']
+    a.qv = row['QV']
+    a.cv = row['CV']
+    a.tqv = row['TQV']
+    a.dqv = row['DQV']
+    a.active_legs = row['Active Legs']
+    a.new_recruits = row['Recruits']
+    a.style_vips = row['SVIPs']
+    a.total_downline = row['Organization Total']
+    a.trip_points = row['Trip']
+    a.team_manager = row['Team Manager']
+    a.sponsor_name = row['Sponsor']
+    a.sponsor_email = row['Sponsor Email']
+    a.highest_title = row['highest']
+
+    return (c, a)
+
+
+# noinspection PyDunderSlots
+def parse_archive_order_row_soup(row_soup):
+    cols = row_soup.findAll('td')
+    o = Order()
+    o.id = cols[0].a.text
+    o.customer_name = cols[1].a.text
+    o.shipping_name = cols[2].a.text
+    o.order_date = datetime.strptime(cols[3].a.text, '%m/%d/%Y') + timedelta(hours=6)
+    o.order_details_url = cols[0].a['href']
+    o.subtotal = currency_to_decimal(cols[4].text)
+    o.shipping_fee = currency_to_decimal(cols[5].text)
+    o.tax = currency_to_decimal(cols[6].text)
+    o.status = cols[9].text.strip()
+    o.retail_bonus = currency_to_decimal(cols[10].text)
+    return o
+
+
+def parse_order_row_soup(row_soup):
+    o = Order()
+    o.customer_name = row_soup.find(text="Placed By:").next.strip()
+    if o.customer_name == u'':
+        o.customer_name = row_soup.find(text="Placed By:").next.next.next.strip()
+        o.customer_url = 'https://workstation.jamberry.com' + row_soup.findAll(['a'])[2]['href']
+        o.customer_id = o.customer_url.split('/')[-1]
+        try:
+            o.customer_contact = row_soup.find(text="Contact: ").next.strip()
+        except AttributeError:
+            # no contact for this order
+            pass
+    o.id = row_soup.td.a.text
+    o.order_type = row_soup.find(text="Type:").next.strip()
+    o.order_date = datetime.strptime(row_soup.td.nextSibling.a.text, '%b %d, %Y') + timedelta(hours=6)
+    o.order_details_url = JAMBERRY_ORDERS_URL + row_soup.td.a['href']
+    o.shipping_name = row_soup.find(text="Shipped To:").next.strip()
+    o.subtotal = float(row_soup.find(text="Subtotal:").next.strip().strip('$').strip(' USD'))
+    o.shipping_fee = float(row_soup.find(text="Shipping:").next.strip().strip('$').strip(' USD'))
+    o.tax = float(row_soup.find(text="Tax:").next.strip().strip('$').strip(' USD'))
+    o.total = float(row_soup.find(text="Total:").next.strip().strip('$').strip(' USD'))
+    o.qv = float(row_soup.find(text="QV:").next.strip().strip('$').strip(' USD'))
+    o.status = row_soup.find(text="Status: ").next.strip()
+    row_find = row_soup.find(text=re.compile('Hostess:'))
+    if row_find:
+        o.hostess = row_find.next.strip()
+    row_find = row_soup.find(text=re.compile('Party:'))
+    if row_find:
+        o.party = row_find.next.strip()
+    row_find = row_soup.find(text='Shipped On:')
+    if row_find:
+        ship_date_str = row_find.next.strip()
+        o.ship_date = datetime.strptime(ship_date_str, '%m/%d/%Y')
+    return o
+
+
+def extract_line_items(detail_soup):
+    line_items_table = detail_soup.find(id='ctl00_main_dgMain')
+    line_items_rows = line_items_table.findAll('tr')[1:]  # skip header row
+    line_items = []
+    for row in line_items_rows:
+        cells = row.findAll('td')
+
+        line_item = OrderLineItem()
+        line_item.sku = cells[0].text.strip()
+        line_item.name = cells[1].text.strip()
+        line_item.price = cells[2].text.strip()
+        line_item.quantity = int(cells[3].text.strip())
+        line_item.total = currency_to_decimal(cells[4].text.strip().split('\n')[0])
+
+        line_items.append(line_item)
+    return line_items
+
+
+def extract_shipping_address(detail_soup):
+    iter_address_lines = detail_soup.find(text=re.compile('Address')).findNext('strong').stripped_strings
+    shipping_address = '\n'.join(iter_address_lines)
+    return shipping_address
+
+
 class Workstation(ABC):
     def __init__(self, *args, **kwargs):
         self.br = Workstation.init_browser()
@@ -122,17 +280,51 @@ class JamberryWorkstation(Workstation):
         self._consultant_id = None
 
     def downline_consultants(self):
-        return self.parse_tar_csv(self.fetch_tar())
+        data = self.fetch_team_activity_csv()
+        tar = DictReader(data.decode(encoding='utf-8').splitlines())
+        yield from (parse_team_activity_row(row) for row in tar)
 
     def customers(self):
-        return self.parse_customer_volume_json(self.fetch_customer_volume_json())
+        data = self.fetch_customer_volume_json()
+        j = json.loads(data)
+        yield from (customer_from_row(row) for row in j['rows'])
 
-    def orders(self):
-        yield from self.parsed_orders(self.fetch_orders())
-        yield from self.parse_archive_orders()
+    def orders(self, include_archive=False, include_details=False):
+        data = self.fetch_orders()
+        order_table = data
+        rows = order_table.findAll('tr')[1:]
+        order_generator = (parse_order_row_soup(row) for row in rows)
+
+        if include_details:
+            yield from (self.add_order_details(o) for o in order_generator)
+        else:
+            yield from order_generator
+
+        if not include_archive:
+            return
+
+        data = self.fetch_archive_orders()
+        order_table = data
+        rows = order_table.findAll('tr')[1:]
+        archive_order_generator = (parse_archive_order_row_soup(row) for row in rows)
+
+        if include_details:
+            yield from (self.add_order_details(o) for o in archive_order_generator)
+        else:
+            yield from archive_order_generator
+
+    def add_order_details(self, order: Order):
+        detail_soup = self.fetch_order_detail(order.id)
+        order.line_items = extract_line_items(detail_soup)
+        order.shipping_address = extract_shipping_address(detail_soup)
+        return order
+
+    def parse_customer_angel_csv(self, customers_angel_csv_data):
+        customer_rows = DictReader(customers_angel_csv_data.decode(encoding='utf-8').splitlines())
+        yield from (parse_customer_angel_row(row) for row in customer_rows)
 
     @requires_login
-    def fetch_tar(self, year=None, month=None, levels='9999'):
+    def fetch_team_activity_csv(self, year=None, month=None, levels='9999'):
         if year is None:
             year = datetime.now().year
         if month is None:
@@ -152,195 +344,22 @@ class JamberryWorkstation(Workstation):
     @requires_login
     def fetch_orders(self):
         resp = self.br.open(JAMBERRY_ORDERS_URL)
-        return resp.soup
+        return resp.soup.find(id='ctl00_contentMain_dgAllOrders')
 
     @requires_login
     def fetch_customer_angel_csv(self):
         resp = self.br.open(JAMBERRY_CUSTOMER_ANGEL_CSV_URL)
         return resp.content
 
-    def parse_customer_angel_csv(self, customers_angel_csv_data):
-        customers = DictReader(customers_angel_csv_data.decode(encoding='utf-8').splitlines())
-        for row in customers:
-            c = Customer()
-            c.name = row['nameFirst'] + " " + row['nameLast']
-            c.address_line_1 = row['Address1']
-            c.address_line_2 = row['Address2']
-            c.address_city = row['City']
-            c.address_state = row['State']
-            c.address_zip = row['Zip']
-            c.email = row['Email']
-            c.phone = row['phone']
-            c.birthdate = datetime.strptime(row['birthdate'], '%m/%d/%Y')
-            c.last_purchase_date = dateutil.parser.parse(row['trans1'])
-            yield c
-
     @requires_login
     def fetch_customer_volume_json(self):
         resp = self.br.open(JAMBERRY_API_CUSTOMER_VOLUME_URL.format(self._consultant_id))
         return resp.content
 
-    def parse_customer_volume_json(self, data):
-        j = json.loads(data)
-        yield from (self.parse_json_customer_row(row) for row in j['rows'])
-
-    def parse_json_customer_row(self, row):
-        c = Customer()
-        c.id = row['userId']
-        c.name = row['name']
-        c.address_line_1 = row['address1']
-        c.address_line_2 = row['address2']
-        c.address_city = row['city']
-        c.address_state = row['state']
-        c.address_zip = row['zip']
-        c.address_country = row['country']
-        c.phone = row['phone']
-        c.type = row['customerType']
-        c.first_purchase_date = dateutil.parser.parse(row['firstPurchase'])
-        c.last_purchase_date = dateutil.parser.parse(row['lastPurchase'])
-        c.sponsor_qv = row['sponsorQV']
-        c.sponsor_rv = row['sponsorRV']
-        c.other_qv = row['otherQV']
-        c.other_rv = row['otherRV']
-        c.original_consultant = row['origConsultant']
-        return c
-
-    def parse_tar_csv(self, tar_data):
-        tar = DictReader(tar_data.decode(encoding='utf-8').splitlines())
-        for row in tar:
-            c = Consultant()
-            c.id = row['Contact']
-            c.downline_level = int(row['DLL'])
-            c.first_name = row['First']
-            c.last_name = row['Last']
-            c.email = row['Email']
-            c.phone = row['Phone']
-            c.address_line1 = row['Address']
-            c.address_city = row['City']
-            c.address_state = row['State']
-            c.address_zip = row['ZIP']
-            c.address_country = row['Country']
-            c.start_date = dateutil.parser.parse(row['Enrollment']) if len(row['Enrollment']) else ''
-            c.consultant_type = row['Type']
-
-            a = ConsultantActivityRecord()
-            a.timestamp = datetime.now()
-            a.generation = row['GEN']
-            a.attending_conference = row['Attending Conference']
-            a.status = row['Status']
-            a.last_login = dateutil.parser.parse(row['Last Login']) if len(row['Last Login']) else ''
-            a.title = row['Title']
-            a.pay_title = row['Pay Title']
-            a.rv = row['RV']
-            a.qv = row['QV']
-            a.cv = row['CV']
-            a.tqv = row['TQV']
-            a.dqv = row['DQV']
-            a.active_legs = row['Active Legs']
-            a.new_recruits = row['Recruits']
-            a.style_vips = row['SVIPs']
-            a.total_downline = row['Organization Total']
-            a.trip_points = row['Trip']
-            a.team_manager = row['Team Manager']
-            a.sponsor_name = row['Sponsor']
-            a.sponsor_email = row['Sponsor Email']
-            a.highest_title = row['highest']
-
-            yield (c, a)
-
     @requires_login
     def fetch_archive_orders(self):
         resp = self.br.open(JAMBERRY_ORDERS_ARCHIVE_URL)
-        return resp.soup
-
-    def parse_archive_orders(self):
-        bs = self.fetch_archive_orders()
-        order_table = bs.find(id='ctl00_main_dgAllOrders')
-        for row in order_table.findAll('tr')[1:]:
-            cols = row.findAll('td')
-            o = Order()
-            o.id = cols[0].a.text
-            o.customer_name = cols[1].a.text
-            o.shipping_name = cols[2].a.text
-            o.order_date = datetime.strptime(cols[3].a.text, '%m/%d/%Y') + timedelta(hours=6)
-            o.order_details_url = cols[0].a['href']
-            o.subtotal = currency_to_decimal(cols[4].text)
-            o.shipping_fee = currency_to_decimal(cols[5].text)
-            o.tax = currency_to_decimal(cols[6].text)
-            o.status = cols[9].text.strip()
-            o.retail_bonus = currency_to_decimal(cols[10].text)
-            yield o
-
-    def parse_order_row(self, row_soup):
-        o = Order()
-        o.customer_name = row_soup.find(text="Placed By:").next.strip()
-        if o.customer_name == u'':
-            o.customer_name = row_soup.find(text="Placed By:").next.next.next.strip()
-            o.customer_url = 'https://workstation.jamberry.com' + row_soup.findAll(['a'])[2]['href']
-            o.customer_id = o.customer_url.split('/')[-1]
-            try:
-                o.customer_contact = row_soup.find(text="Contact: ").next.strip()
-            except AttributeError:
-                # no contact for this order
-                pass
-        o.id = row_soup.td.a.text
-        o.order_type = row_soup.find(text="Type:").next.strip()
-        o.order_date = datetime.strptime(row_soup.td.nextSibling.a.text, '%b %d, %Y') + timedelta(hours=6)
-        o.order_details_url = JAMBERRY_ORDERS_URL + row_soup.td.a['href']
-        o.shipping_name = row_soup.find(text="Shipped To:").next.strip()
-        o.subtotal = float(row_soup.find(text="Subtotal:").next.strip().strip('$').strip(' USD'))
-        o.shipping_fee = float(row_soup.find(text="Shipping:").next.strip().strip('$').strip(' USD'))
-        o.tax = float(row_soup.find(text="Tax:").next.strip().strip('$').strip(' USD'))
-        o.total = float(row_soup.find(text="Total:").next.strip().strip('$').strip(' USD'))
-        o.qv = float(row_soup.find(text="QV:").next.strip().strip('$').strip(' USD'))
-        o.status = row_soup.find(text="Status: ").next.strip()
-        row_find = row_soup.find(text=re.compile('Hostess:'))
-        if row_find:
-            o.hostess = row_find.next.strip()
-        row_find = row_soup.find(text=re.compile('Party:'))
-        if row_find:
-            o.party = row_find.next.strip()
-        row_find = row_soup.find(text='Shipped On:')
-        if row_find:
-            ship_date_str = row_find.next.strip()
-            o.ship_date = datetime.strptime(ship_date_str, '%m/%d/%Y')
-        return o
-
-    def parsed_orders(self, order_soup):
-        order_table = order_soup.find(id='ctl00_contentMain_dgAllOrders')
-        yield from (self.parse_order_row(row) for row in order_table.findAll('tr')[1:])
-
-    def parsed_orders_with_details(self):
-        for order in self.parsed_orders():
-            self.add_order_details(order)
-            yield order
-
-    def extract_line_items(self, detail_soup):
-        line_items_table = detail_soup.find(id='ctl00_main_dgMain')
-        line_items_rows = line_items_table.findAll('tr')[1:]  # skip header row
-        line_items = []
-        for row in line_items_rows:
-            cells = row.findAll('td')
-
-            line_item = OrderLineItem()
-            line_item.sku = cells[0].text.strip()
-            line_item.name = cells[1].text.strip()
-            line_item.price = cells[2].text.strip()
-            line_item.quantity = int(cells[3].text.strip())
-            line_item.total = currency_to_decimal(cells[4].text.strip().split('\n')[0])
-
-            line_items.append(line_item)
-        return line_items
-
-    def extract_shipping_address(self, detail_soup):
-        iter_address_lines = detail_soup.find(text=re.compile('Address')).findNext('strong').stripped_strings
-        shipping_address = '\n'.join(iter_address_lines)
-        return shipping_address
-
-    def add_order_details(self, order: Order):
-        detail_soup = self.fetch_order_detail(order.id)
-        order.line_items = self.extract_line_items(detail_soup)
-        order.shipping_address = self.extract_shipping_address(detail_soup)
+        return resp.soup.find(id='ctl00_main_dgAllOrders')
 
     @requires_login
     def fetch_order_detail(self, order_id):

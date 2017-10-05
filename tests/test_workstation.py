@@ -6,12 +6,13 @@ from bs4 import BeautifulSoup
 # uncomment these lines to see requests
 # import logging
 # logging.basicConfig(level=logging.DEBUG)
+from src.jamberry.workstation import extract_shipping_address, extract_line_items, parse_order_row_soup
 
 
 @pytest.mark.usefixtures('ws')
 def test_fetch_tar(ws):
     # test fetching current TAR
-    tar = ws.fetch_tar()
+    tar = ws.fetch_team_activity_csv()
     assert ws.logged_in
     tar_str = str(tar, encoding='utf8')
     i = tar_str.find('\n', 0, 1024)
@@ -21,7 +22,7 @@ def test_fetch_tar(ws):
 
     # test fetching last months TAR
     t = datetime.now() - timedelta(weeks=35)
-    last_month_tar = ws.fetch_tar(year=t.year, month=t.month)
+    last_month_tar = ws.fetch_team_activity_csv(year=t.year, month=t.month)
     last_month_tar_str = str(last_month_tar, encoding='utf8')
     i = last_month_tar_str.find('\n', 0, 1024)
     tar_csv_dialect = csv.Sniffer().sniff(last_month_tar_str[:i])
@@ -43,14 +44,14 @@ def test_login_logout(ws):
 def test_fetch_orders(ws):
     orders = ws.fetch_orders()
     assert ws.logged_in
-    assert orders.find(id=b'ctl00_contentMain_dgAllOrders')
+    assert orders is not None
 
 
 @pytest.mark.usefixtures('ws')
 def test_fetch_archive_orders(ws):
     orders = ws.fetch_archive_orders()
     assert ws.logged_in
-    assert orders.find(id='ctl00_main_dgAllOrders') is not None
+    assert orders is not None
 
 
 @pytest.mark.usefixtures('ws')
@@ -75,19 +76,19 @@ def test_orders(ws):
     assert orders is not None
 
 
-@pytest.mark.usefixtures('ws', 'order_detail_html')
-def test_extract_shipping_address(ws, order_detail_html):
+@pytest.mark.usefixtures('order_detail_html')
+def test_extract_shipping_address(order_detail_html):
     soup = BeautifulSoup(order_detail_html)
-    address = ws.extract_shipping_address(soup)
+    address = extract_shipping_address(soup)
     lines = address.split('\n')
     assert lines[0] == '123 Somewhere St'
     assert lines[1] == 'Somewhere, CA 12345-6789'
 
 
-@pytest.mark.usefixtures('ws', 'order_detail_html')
-def test_extract_line_items(ws, order_detail_html):
+@pytest.mark.usefixtures('order_detail_html')
+def test_extract_line_items(order_detail_html):
     soup = BeautifulSoup(order_detail_html)
-    line_items = ws.extract_line_items(soup)
+    line_items = extract_line_items(soup)
     assert line_items[0].name == 'Crimson Crush'
     assert line_items[0].quantity == 2
     assert line_items[3].total == float(65)
@@ -99,10 +100,10 @@ def test_downline_consultants(ws):
         assert consultant.id is not None
         assert activity.timestamp is not None
 
-@pytest.mark.usefixtures('ws', 'order_row_html')
-def test_parse_order_row(ws, order_row_html):
+@pytest.mark.usefixtures('order_row_html')
+def test_parse_order_row(order_row_html):
     soup = BeautifulSoup(order_row_html).tr
-    order = ws.parse_order_row(soup)
+    order = parse_order_row_soup(soup)
     assert order.id == '12345678'
     assert order.customer_name == 'Foo Bar'
     assert order.shipping_name == 'Foo Bar'
