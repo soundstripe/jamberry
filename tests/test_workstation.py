@@ -3,10 +3,12 @@ from datetime import datetime, timedelta
 import pytest
 from bs4 import BeautifulSoup
 
+from src.jamberry.workstation import extract_shipping_address, extract_line_items, parse_order_row_soup
+
+
 # uncomment these lines to see requests
 # import logging
 # logging.basicConfig(level=logging.DEBUG)
-from src.jamberry.workstation import extract_shipping_address, extract_line_items, parse_order_row_soup
 
 
 @pytest.mark.usefixtures('ws')
