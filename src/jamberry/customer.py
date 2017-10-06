@@ -27,7 +27,8 @@ class Customer:
     def address(self):
         """Simple address formatting for mailing"""
         street = self.address_line_1
-        if self.address_line_2:
+        if getattr(self, 'address_line_2', None):
             street = f'{street}\n{self.address_line_2}'
-        return f'{street}\n' \
+        return f'{self.name}\n' \
+               f'{street}\n' \
                f'{self.address_city}, {self.address_state} {self.address_zip}'

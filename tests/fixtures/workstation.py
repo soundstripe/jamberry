@@ -9,14 +9,8 @@ from src.jamberry.workstation import JamberryWorkstation
 @pytest.fixture(scope='module')
 def ws():
     config = ConfigParser()
-    config['credentials'] = {
-        'username': '',
-        'password': '',
-    }
-    credentials = config['credentials']
-    with open('dev_config.ini') as config_file:
-        config.read_file(config_file)
-    username, password = credentials.get('username'), credentials.get('password')
+    config.read('dev_config.ini')
+    username, password = config.get('credentials', 'username'), config.get('credentials', 'password')
     return JamberryWorkstation(username, password)
 
 

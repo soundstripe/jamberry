@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from urllib.parse import urljoin, urlencode
 import re
+from typing import Iterable
 
 import mechanicalsoup
 import dateutil.parser
@@ -16,7 +17,7 @@ from .consultant import Consultant, ConsultantActivityRecord
 from .order import Order, OrderLineItem
 
 
-def field_data(soup, name):
+def field_data(soup, name) -> (str, str):
     return name, soup.find('input', attrs=dict(name=name)).get('value')
 
 
@@ -31,7 +32,7 @@ def requires_login(f):
 
 
 # noinspection PyDunderSlots
-def customer_from_row(row):
+def customer_from_row(row) -> Customer:
     c = Customer()
     c.id = row['userId']
     c.name = row['name']
@@ -53,7 +54,7 @@ def customer_from_row(row):
     return c
 
 
-def parse_customer_angel_row(row):
+def parse_customer_angel_row(row) -> Customer:
     c = Customer()
     c.name = row['nameFirst'] + " " + row['nameLast']
     c.address_line_1 = row['Address1']
@@ -69,7 +70,9 @@ def parse_customer_angel_row(row):
 
 
 # noinspection PyDunderSlots
-def parse_team_activity_row(row):
+def parse_team_activity_row(row) -> (Consultant, ConsultantActivityRecord):
+    """Given a dict-like row (from TAR CSV export), creates a Consultant object and a
+    ConsultantActivityRecord object."""
     c = Consultant()
     c.id = row['Contact']
     c.downline_level = int(row['DLL'])
@@ -108,11 +111,11 @@ def parse_team_activity_row(row):
     a.sponsor_email = row['Sponsor Email']
     a.highest_title = row['highest']
 
-    return (c, a)
+    return c, a
 
 
 # noinspection PyDunderSlots
-def parse_archive_order_row_soup(row_soup):
+def parse_archive_order_row_soup(row_soup) -> Order:
     cols = row_soup.findAll('td')
     o = Order()
     o.id = cols[0].a.text
@@ -128,7 +131,7 @@ def parse_archive_order_row_soup(row_soup):
     return o
 
 
-def parse_order_row_soup(row_soup):
+def parse_order_row_soup(row_soup) -> Order:
     o = Order()
     o.customer_name = row_soup.find(text="Placed By:").next.strip()
     if o.customer_name == u'':
@@ -164,7 +167,7 @@ def parse_order_row_soup(row_soup):
     return o
 
 
-def extract_line_items(detail_soup):
+def extract_line_items(detail_soup) -> list[OrderLineItem]:
     line_items_table = detail_soup.find(id='ctl00_main_dgMain')
     line_items_rows = line_items_table.findAll('tr')[1:]  # skip header row
     line_items = []
@@ -182,7 +185,7 @@ def extract_line_items(detail_soup):
     return line_items
 
 
-def extract_shipping_address(detail_soup):
+def extract_shipping_address(detail_soup) -> str:
     iter_address_lines = detail_soup.find(text=re.compile('Address')).findNext('strong').stripped_strings
     shipping_address = '\n'.join(iter_address_lines)
     return shipping_address
@@ -201,21 +204,21 @@ class Workstation(ABC):
         return br
 
     @abstractmethod
-    def orders(self):
+    def orders(self) -> Iterable[Order]:
         return iter([])
 
     @abstractmethod
-    def customers(self):
+    def customers(self) -> Iterable[Customer]:
         return iter([])
 
     @abstractmethod
-    def downline_consultants(self):
+    def downline_consultants(self) -> Iterable[(Consultant, ConsultantActivityRecord)]:
         return iter([])
 
 
 # noinspection PyDunderSlots
 class JamberryWorkstation(Workstation):
-    def __init__(self, username, password, *args, **kwargs):
+    def __init__(self, username=None, password=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.username = username
         self.password = password
@@ -224,11 +227,13 @@ class JamberryWorkstation(Workstation):
         self._consultant_id = None
         self.workstation_url = 'https://workstation.jamberry.com'
         self.urls = self.init_urls()
+        if username is None and password is None:
+            self.read_config()
 
     def __del__(self):
-        if self._cart_url is not None:
+        if getattr(self, '_cart_url', None) is not None:
             self.delete_tmp_search_cart_retail()
-        if self.logged_in:
+        if getattr(self, 'logged_in', False):
             self.logout()
 
     def init_urls(self):
@@ -423,3 +428,13 @@ class JamberryWorkstation(Workstation):
             resp = self.br.get(search_url, params=payload)
             json_results[k] = resp.content
         return json_results
+
+    def read_config(self):
+        from configparser import ConfigParser, Error
+        parser = ConfigParser()
+        config_path = 'jamberry.ini'
+        found = parser.read(config_path)
+        if not found:
+            raise IOError('Supply username and password in `jamberry.ini`')
+        self.username = parser.get('credentials', 'username')
+        self.password = parser.get('credentials', 'password')

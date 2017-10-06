@@ -3,7 +3,8 @@ from datetime import datetime, timedelta
 import pytest
 from bs4 import BeautifulSoup
 
-from src.jamberry.workstation import extract_shipping_address, extract_line_items, parse_order_row_soup
+from src.jamberry.workstation import extract_shipping_address, extract_line_items, parse_order_row_soup, \
+    JamberryWorkstation
 
 
 # uncomment these lines to see requests
@@ -11,6 +12,7 @@ from src.jamberry.workstation import extract_shipping_address, extract_line_item
 # logging.basicConfig(level=logging.DEBUG)
 
 
+@pytest.mark.online
 @pytest.mark.usefixtures('ws')
 def test_fetch_tar(ws):
     # test fetching current TAR
@@ -34,6 +36,7 @@ def test_fetch_tar(ws):
     assert tar_str != last_month_tar_str
 
 
+@pytest.mark.online
 @pytest.mark.usefixtures('ws')
 def test_login_logout(ws):
     ws.login()
@@ -42,6 +45,7 @@ def test_login_logout(ws):
     assert not ws.logged_in
 
 
+@pytest.mark.online
 @pytest.mark.usefixtures('ws')
 def test_fetch_orders(ws):
     orders = ws.fetch_orders()
@@ -49,6 +53,7 @@ def test_fetch_orders(ws):
     assert orders is not None
 
 
+@pytest.mark.online
 @pytest.mark.usefixtures('ws')
 def test_fetch_archive_orders(ws):
     orders = ws.fetch_archive_orders()
@@ -56,6 +61,7 @@ def test_fetch_archive_orders(ws):
     assert orders is not None
 
 
+@pytest.mark.online
 @pytest.mark.usefixtures('ws')
 def test_create_and_delete_tmp_search_cart_retail(ws):
     ws.create_tmp_search_cart_retail()
@@ -67,11 +73,13 @@ def test_create_and_delete_tmp_search_cart_retail(ws):
     assert ws._cart_url is None
 
 
+@pytest.mark.online
 @pytest.mark.usefixtures('ws')
 def test_fetch_autocomplete(ws):
     pass
 
 
+@pytest.mark.online
 @pytest.mark.usefixtures('ws')
 def test_orders(ws):
     orders = list(ws.orders())
@@ -96,11 +104,13 @@ def test_extract_line_items(order_detail_html):
     assert line_items[3].total == float(65)
 
 
+@pytest.mark.online
 @pytest.mark.usefixtures('ws')
 def test_downline_consultants(ws):
     for consultant, activity in ws.downline_consultants():
         assert consultant.id is not None
         assert activity.timestamp is not None
+
 
 @pytest.mark.usefixtures('order_row_html')
 def test_parse_order_row(order_row_html):
@@ -124,12 +134,16 @@ def test_parse_order_row(order_row_html):
     assert order.ship_date == datetime(2017, 10, 1)
 
 
+@pytest.mark.online
 @pytest.mark.usefixtures('ws')
 def test_customers(ws):
     for customer in ws.customers():
         assert customer.name is not None
 
 
+def test_ws_no_config_file():
+    with pytest.raises(IOError):
+        ws = JamberryWorkstation()
 
 
 
