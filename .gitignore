@@ -100,5 +100,6 @@ ENV/
 # mypy
 .mypy_cache/
 
-# jamberry dev config (may include credentials)
-tests/dev_config.ini
+# jamberry dev configs (may include credentials)
+dev_config.ini
+/examples/jamberry.ini
