@@ -1,4 +1,6 @@
 class Customer:
+    """This class represents a customer, and is primarily useful for storing contact information. The workstation
+    also provides information such as total sales to the customer and the customer's original consultant."""
     __slots__ = (
         'id',
         'name',
@@ -20,3 +22,12 @@ class Customer:
         'birthdate',
         'original_consultant',
     )
+
+    @property
+    def address(self):
+        """Simple address formatting for mailing"""
+        street = self.address_line_1
+        if self.address_line_2:
+            street = f'{street}\n{self.address_line_2}'
+        return f'{street}\n' \
+               f'{self.address_city}, {self.address_state} {self.address_zip}'
