@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from urllib.parse import urljoin, urlencode
 import re
-from typing import Iterable
+from typing import Iterable, Tuple
 
 import mechanicalsoup
 import dateutil.parser
@@ -167,7 +167,7 @@ def parse_order_row_soup(row_soup) -> Order:
     return o
 
 
-def extract_line_items(detail_soup) -> list[OrderLineItem]:
+def extract_line_items(detail_soup) -> Iterable[OrderLineItem]:
     line_items_table = detail_soup.find(id='ctl00_main_dgMain')
     line_items_rows = line_items_table.findAll('tr')[1:]  # skip header row
     line_items = []
@@ -212,11 +212,16 @@ class Workstation(ABC):
         return iter([])
 
     @abstractmethod
-    def downline_consultants(self) -> Iterable[(Consultant, ConsultantActivityRecord)]:
+    def downline_consultants(self) -> Iterable[Tuple[Consultant, ConsultantActivityRecord]]:
         return iter([])
 
 
 # noinspection PyDunderSlots
+def parse_customer_angel_csv(customers_angel_csv_data):
+    customer_rows = DictReader(customers_angel_csv_data.decode(encoding='utf-8').splitlines())
+    yield from (parse_customer_angel_row(row) for row in customer_rows)
+
+
 class JamberryWorkstation(Workstation):
     def __init__(self, username=None, password=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -290,17 +295,17 @@ class JamberryWorkstation(Workstation):
         self._logged_in = False
         self._consultant_id = None
 
-    def downline_consultants(self):
+    def downline_consultants(self) -> Iterable[Tuple[Consultant, ConsultantActivityRecord]]:
         data = self.fetch_team_activity_csv()
         tar = DictReader(data.decode(encoding='utf-8').splitlines())
         yield from (parse_team_activity_row(row) for row in tar)
 
-    def customers(self):
+    def customers(self) -> Iterable[Customer]:
         data = self.fetch_customer_volume_json()
         j = json.loads(data)
         yield from (customer_from_row(row) for row in j['rows'])
 
-    def orders(self, include_archive=False, include_details=False):
+    def orders(self, include_archive=False, include_details=False) -> Iterable[Order]:
         data = self.fetch_orders()
         order_table = data
         rows = order_table.findAll('tr')[1:]
@@ -329,10 +334,6 @@ class JamberryWorkstation(Workstation):
         order.line_items = extract_line_items(detail_soup)
         order.shipping_address = extract_shipping_address(detail_soup)
         return order
-
-    def parse_customer_angel_csv(self, customers_angel_csv_data):
-        customer_rows = DictReader(customers_angel_csv_data.decode(encoding='utf-8').splitlines())
-        yield from (parse_customer_angel_row(row) for row in customer_rows)
 
     @requires_login
     def fetch_team_activity_csv(self, year=None, month=None, levels='9999'):
