@@ -1,7 +1,9 @@
 # jamberry
 
 This is an unlikely library to access your Jamberry consultant
-workstation information in Python.
+workstation information in Python. Some of the information is 
+scraped using BeautifulSoup (via mechanicalsoup), and some is
+pulled from CSV/JSON reports.
 
 ## Installation
 
@@ -31,3 +33,13 @@ Example: count the number of each consultant type in your downline
 Output:
 
     Counter({'Fast Start': 10, 'Hobbyist': 180, 'Professional Consultant': 96})
+    
+## Configuration
+
+If you do not provide a username and password when creating a
+`JamberryWorkstation`, the object will look for a file called `jamberry.ini`
+in your current working directory. Example:
+
+    [credentials]
+    username = AJamLady@morenailwraps.com
+    password = hunter2
