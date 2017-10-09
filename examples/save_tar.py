@@ -24,7 +24,7 @@ def save_tar(destination='.'):
     destination = Path(destination)
     ws = jamberry.JamberryWorkstation()
     csv_data = ws.fetch_team_activity_csv()
-    file_name = datetime.now().strftime('%Y-%m-%d %H.%M TAR.csv')
+    file_name = dtetime.now().strftime('%Y-%m-%d %H.%M TAR.csv')
     file_path = destination / file_name
     file_path.write_bytes(csv_data)
     return file_path

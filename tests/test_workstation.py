@@ -75,12 +75,6 @@ def test_create_and_delete_tmp_search_cart_retail(ws):
 
 @pytest.mark.online
 @pytest.mark.usefixtures('ws')
-def test_fetch_autocomplete(ws):
-    pass
-
-
-@pytest.mark.online
-@pytest.mark.usefixtures('ws')
 def test_orders(ws):
     orders = list(ws.orders())
     assert orders is not None

@@ -1,0 +1,14 @@
+class Product:
+    __slots__ = (
+        'tags',
+        'sku',
+        'title',
+        'price',
+        'slug',
+        'url',
+        'img',
+        'in_stock',
+        'product_type',
+        'nas_design',
+        'sized_images',
+    )

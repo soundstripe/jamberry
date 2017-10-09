@@ -4,6 +4,7 @@ from collections import OrderedDict
 from csv import DictReader
 from datetime import datetime, timedelta
 from functools import wraps
+from itertools import chain
 from urllib.parse import urljoin, urlencode
 import re
 from typing import Iterable, Tuple
@@ -11,6 +12,7 @@ from typing import Iterable, Tuple
 import mechanicalsoup
 import dateutil.parser
 
+from .product import Product
 from .customer import Customer
 from .util import currency_to_decimal
 from .consultant import Consultant, ConsultantActivityRecord
@@ -215,11 +217,29 @@ class Workstation(ABC):
     def downline_consultants(self) -> Iterable[Tuple[Consultant, ConsultantActivityRecord]]:
         return iter([])
 
+    @abstractmethod
+    def catalog_products(self) -> Iterable[Product]:
+        return iter([])
 
 # noinspection PyDunderSlots
 def parse_customer_angel_csv(customers_angel_csv_data):
     customer_rows = DictReader(customers_angel_csv_data.decode(encoding='utf-8').splitlines())
     yield from (parse_customer_angel_row(row) for row in customer_rows)
+
+
+def parse_product(p) -> Product:
+    p = Product()
+    p.img = p['img']
+    p.sku = p['sku']
+    p.in_stock = p['inStock']
+    p.price = p['price']
+    p.slug = p['slug']
+    p.tags = p['tags']
+    p.title = p['title']
+    p.nas_design = p['nasDesign']
+    p.product_type = p['productType']
+    p.sized_images = p['sizedImages']
+    return p
 
 
 class JamberryWorkstation(Workstation):
@@ -329,6 +349,10 @@ class JamberryWorkstation(Workstation):
         else:
             yield from archive_order_generator
 
+    def catalog_products(self) -> Iterable[Product]:
+        for p in self.fetch_all_products():
+            yield parse_product(p)
+
     def add_order_details(self, order: Order):
         detail_soup = self.fetch_order_detail(order.id)
         order.line_items = extract_line_items(detail_soup)
@@ -411,24 +435,31 @@ class JamberryWorkstation(Workstation):
         self.br.get(delete_cart_post_url, params=payload)
         self._cart_url = None
 
-    @requires_login
-    def fetch_autocomplete_json(self, search_keys="aeiou"):
+    def fetch_all_products(self):
+        search_keys = 'aeiou'
         """By default, fetches and combines 5 autocomplete results, to effectively
-        get a full catalog. You can provide any iterable to `search_keys`."""
+           get a full catalog. You can provide any iterable to `search_keys`."""
         if self._cart_url is None:
             self.create_tmp_search_cart_retail()
+        results = (self.fetch_autocomplete_json(search_key) for search_key in search_keys)
+        product_lists = (result['products'] for result in results)
+        products = {}
+        for p in chain(*product_lists):
+            products[p['sku']] = p
+        yield from products.values()
+
+    @requires_login
+    def fetch_autocomplete_json(self, search_key):
         search_url = self._cart_url.replace('cart/display', 'search/products')
         defaults = (
             ('cartType', 'Retail'),
             ('catalogType', 'retail'),
             ('take', '9999'),  # there are less than 2,000 items in the catalog, so this gets all results
         )
-        json_results = {}
-        for k in search_keys:
-            payload = dict(defaults + (('q', k),))
-            resp = self.br.get(search_url, params=payload)
-            json_results[k] = resp.content
-        return json_results
+        payload = dict(defaults + (('q', search_key),))
+        resp = self.br.get(search_url, params=payload)
+        json_result = json.loads(resp.content, encoding='ISO-8859-1')
+        return json_result
 
     def read_config(self):
         from configparser import ConfigParser, Error
