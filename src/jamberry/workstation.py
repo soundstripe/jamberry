@@ -227,18 +227,18 @@ def parse_customer_angel_csv(customers_angel_csv_data):
     yield from (parse_customer_angel_row(row) for row in customer_rows)
 
 
-def parse_product(p) -> Product:
+def parse_product(row) -> Product:
     p = Product()
-    p.img = p['img']
-    p.sku = p['sku']
-    p.in_stock = p['inStock']
-    p.price = p['price']
-    p.slug = p['slug']
-    p.tags = p['tags']
-    p.title = p['title']
-    p.nas_design = p['nasDesign']
-    p.product_type = p['productType']
-    p.sized_images = p['sizedImages']
+    p.img = row['img']
+    p.sku = row['sku']
+    p.in_stock = row['inStock']
+    p.price = row['price']
+    p.slug = row['slug']
+    p.tags = row['tags']
+    p.title = row['title']
+    p.nas_design = row['nasDesign']
+    p.product_type = row['productType']
+    p.sized_images = row['sizedImages']
     return p
 
 
@@ -445,7 +445,11 @@ class JamberryWorkstation(Workstation):
         product_lists = (result['products'] for result in results)
         products = {}
         for p in chain(*product_lists):
-            products[p['sku']] = p
+            if isinstance(p['sku'], list):
+                sku = p['sku'][0]
+            else:
+                sku = p['sku']
+            products[sku] = p
         yield from products.values()
 
     @requires_login

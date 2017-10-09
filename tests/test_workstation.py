@@ -140,4 +140,8 @@ def test_ws_no_config_file():
         ws = JamberryWorkstation()
 
 
-
+@pytest.mark.online
+@pytest.mark.usefixtures('ws')
+def test_catalog_products(ws):
+    for p in ws.catalog_products():
+        assert p.sku is not None
