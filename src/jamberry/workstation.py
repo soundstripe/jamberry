@@ -294,7 +294,7 @@ class JamberryWorkstation(Workstation):
         resp = br.submit_selected()
         if resp.status_code != 200:
             raise Exception("could not log in")
-        if b'Quick Links' not in resp.content:
+        if b'entered are invalid' in resp.content:
             raise Exception("could not log in (likely incorrect username or password)")
         resp = self.br.open('https://workstation.jamberry.com/ws/dashboard', allow_redirects=True)
         if '/login' in resp.url:
