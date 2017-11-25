@@ -46,12 +46,23 @@ def customer_from_row(row) -> Customer:
     c.address_country = row['country']
     c.phone = row['phone']
     c.type = row['customerType']
-    c.first_purchase_date = dateutil.parser.parse(row['firstPurchase'])
-    c.last_purchase_date = dateutil.parser.parse(row['lastPurchase'])
+
+    first_purchase = row['firstPurchase']
+    try:
+        c.first_purchase_date = dateutil.parser.parse(first_purchase)
+    except ValueError:
+        c.first_purchase_date = first_purchase
+
+    last_purchase = row['lastPurchase']
+    try:
+        c.last_purchase_date = dateutil.parser.parse(last_purchase)
+    except ValueError:
+        c.last_purchase_date = last_purchase
+
     c.sponsor_qv = row['sponsorQV']
     c.sponsor_rv = row['sponsorRV']
-    c.other_qv = row['otherQV']
-    c.other_rv = row['otherRV']
+    c.other_qv = row['allQV']
+    c.other_rv = row['allRV']
     c.original_consultant = row['origConsultant']
     return c
 
