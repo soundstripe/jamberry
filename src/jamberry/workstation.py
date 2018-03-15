@@ -269,8 +269,6 @@ class JamberryWorkstation(Workstation):
     def __del__(self):
         if getattr(self, '_cart_url', None) is not None:
             self.delete_tmp_search_cart_retail()
-        if getattr(self, 'logged_in', False):
-            self.logout()
 
     def init_urls(self):
         urls = dict(
@@ -283,7 +281,7 @@ class JamberryWorkstation(Workstation):
                                                     'associate/associates/ExportClientAngelForm.aspx'),
             JAMBERRY_VIEW_CARTS_URL=urljoin(self.workstation_url, 'us/en/wscart'),
             JAMBERRY_CREATE_NEW_RETAIL_CART_URL=urljoin(self.workstation_url, 'us/en/wscart/cart/new?cartType=2'),
-            JAMBERRY_CREATE_NEW_RETAIL_CART_POST_URL=urljoin(self.workstation_url, 'us/en/wscart/cart/saveCart'),
+            JAMBERRY_CREATE_NEW_RETAIL_CART_POST_URL=urljoin(self.workstation_url, 'us/en/wscart/cart/new?cartType=2'),
             JAMBERRY_API_CUSTOMER_VOLUME_URL=urljoin(self.workstation_url,
                                                      'api/reporting/v1/consultant/{}/customers/volume'),
             JAMBERRY_API_TEAM_ACTIVITY_REPORT_URL=urljoin(self.workstation_url, 'api/consultant/{}/team/activity/csv'),
