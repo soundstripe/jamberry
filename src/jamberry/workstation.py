@@ -161,11 +161,11 @@ def parse_order_row_soup(row_soup) -> Order:
     o.order_date = datetime.strptime(row_soup.td.nextSibling.a.text, '%b %d, %Y') + timedelta(hours=6)
     o.order_details_url = row_soup.td.a['href']
     o.shipping_name = row_soup.find(text="Shipped To:").next.strip()
-    o.subtotal = float(row_soup.find(text="Subtotal:").next.strip().strip('$').strip(' USD'))
-    o.shipping_fee = float(row_soup.find(text="Shipping:").next.strip().strip('$').strip(' USD'))
-    o.tax = float(row_soup.find(text="Tax:").next.strip().strip('$').strip(' USD'))
-    o.total = float(row_soup.find(text="Total:").next.strip().strip('$').strip(' USD'))
-    o.qv = float(row_soup.find(text="QV:").next.strip().strip('$').strip(' USD'))
+    o.subtotal = row_soup.find(text="Subtotal:").next.strip()
+    o.shipping_fee = row_soup.find(text="Shipping:").next.strip()
+    o.tax = row_soup.find(text="Tax:").next.strip()
+    o.total = row_soup.find(text="Total:").next.strip()
+    o.qv = row_soup.find(text="QV:").next.strip()
     o.status = row_soup.find(text="Status: ").next.strip()
     row_find = row_soup.find(text=re.compile('Hostess:'))
     if row_find:
