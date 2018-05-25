@@ -444,8 +444,7 @@ class JamberryWorkstation(Workstation):
         self.br.get(delete_cart_post_url, params=payload)
         self._cart_url = None
 
-    def fetch_all_products(self):
-        search_keys = 'aeiou'
+    def fetch_all_products(self, search_keys='aeiou*'):
         """By default, fetches and combines 5 autocomplete results, to effectively
            get a full catalog. You can provide any iterable to `search_keys`."""
         if self._cart_url is None:
