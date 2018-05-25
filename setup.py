@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
     name="Jamberry Unofficial API",
-    version="0.2.0.2",
+    version="0.2.0.3",
     packages=find_packages('src'),
     package_dir={'': 'src'},
     author='Steven James',
