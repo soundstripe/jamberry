@@ -199,7 +199,7 @@ def extract_line_items(detail_soup) -> Iterable[OrderLineItem]:
 
 
 def extract_shipping_address(detail_soup) -> str:
-    iter_address_lines = detail_soup.find(text=re.compile('Address')).findNext('strong').stripped_strings
+    iter_address_lines = detail_soup.find(text=re.compile('Address')).findNext('dd').stripped_strings
     shipping_address = '\n'.join(iter_address_lines)
     return shipping_address
 
