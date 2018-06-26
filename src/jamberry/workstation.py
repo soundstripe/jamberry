@@ -253,6 +253,41 @@ def parse_product(row) -> Product:
     return p
 
 
+def parse_order_api(item):
+    order = Order()
+    order.id = item['orderID']
+    order.customer_id = item['userId']
+    order.customer_name = item['displayName']
+    order.hostess = item['party']['hostName']
+    order.party = item['party']['name']
+    order.order_date = datetime.strptime(item['orderedDate'], '%Y-%m-%dT%H:%M:%S')
+    order.status = item['shippedStatus']['description']
+    order.ship_date = item.get('shippedDate', None)
+    order.qv = item['qv']
+    order.retail_bonus = item['']
+    order.total = item['orderTotal']
+    order.shipping_fee = item['shippingTotal']
+    order.tax = item['taxTotal']
+    order.order_type = item['orderType']['orderTypeDescription']
+    order.shipping_name = f"{item['shippingFirstName']} {item['shippingLastName']}"
+    order.shipping_address = f"{order.shipping_name}\n" \
+                             f"{item['shippingAddress1']}\n" \
+                             f"{item['shippingAddress2']}\n" \
+                             f"{item['shippingCity']}, {item['shippingState']} {item['shippingPostalCode']}"
+    order.subtotal = item['subTotal']
+    order.customer_contact = item['orderedEmail']
+    order.line_items = []
+    for osi in item['orderStatusItems']:
+        li = OrderLineItem()
+        li.name = osi['name']
+        li.total = osi['priceTotal']
+        li.price = osi['pricePer']
+        li.quantity = osi['quantity']
+        li.sku = osi['sku']
+        order.line_items.append(li)
+    return order
+
+
 class JamberryWorkstation(Workstation):
     def __init__(self, username=None, password=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -335,28 +370,13 @@ class JamberryWorkstation(Workstation):
         yield from (customer_from_row(row) for row in j['rows'])
 
     def orders(self, include_archive=False, include_details=False) -> Iterable[Order]:
-        data = self.fetch_orders()
-        order_table = data
-        rows = order_table.findAll('tr')[1:]
-        order_generator = (parse_order_row_soup(row) for row in rows)
+        data = self.fetch_orders_api()
+        order_generator = (parse_order_api(item) for item in data)
 
         if include_details:
             yield from (self.add_order_details(o) for o in order_generator)
         else:
             yield from order_generator
-
-        if not include_archive:
-            return
-
-        data = self.fetch_archive_orders()
-        order_table = data
-        rows = order_table.findAll('tr')[1:]
-        archive_order_generator = (parse_archive_order_row_soup(row) for row in rows)
-
-        if include_details:
-            yield from (self.add_order_details(o) for o in archive_order_generator)
-        else:
-            yield from archive_order_generator
 
     def catalog_products(self) -> Iterable[Product]:
         for p in self.fetch_all_products():
@@ -393,6 +413,30 @@ class JamberryWorkstation(Workstation):
     def fetch_orders(self):
         resp = self.br.open(self.urls['JAMBERRY_ORDERS_URL'])
         return resp.soup.find(id='ctl00_contentMain_dgAllOrders')
+
+    @requires_login
+    def fetch_orders_api(self, start_date='2014-01-01'):
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        more_pages = True
+        current_page = 0
+        data = []
+        while more_pages:
+            resp = self.br.open(
+                self.urls['JAMBERRY_ORDERS_API_URL'],
+                params=dict(
+                    userId=self._consultant_id,
+                    startDate=start_date,
+                    endDate=end_date,
+                    page=current_page,
+                    searchType='MINE_AND_SPONSORED_ORDERS',
+                    tz='America/New_York',
+                )
+            )
+            current = resp.json()
+            current_page += 1
+            more_pages = not current.last
+            data.extend(current['orderHistoryPage']['content'])
+        return data
 
     @requires_login
     def fetch_customer_angel_csv(self):
