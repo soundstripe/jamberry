@@ -17,4 +17,4 @@ def currency_to_decimal(param):
     m = positive.match(param)
     if m: return Decimal(m.groups()[0])
 
-    raise ValueError()
+    return param
