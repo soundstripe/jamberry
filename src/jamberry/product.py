@@ -4,6 +4,7 @@ class Product:
         'sku',
         'title',
         'price',
+        'retail_price',
         'slug',
         'url',
         'img',
@@ -11,4 +12,5 @@ class Product:
         'product_type',
         'nas_design',
         'sized_images',
+        'on_sale',
     )

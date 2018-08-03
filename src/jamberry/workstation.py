@@ -244,12 +244,14 @@ def parse_product(row) -> Product:
     p.sku = row['sku']
     p.in_stock = row['inStock']
     p.price = row['price']
+    p.retail_price = row['priceRetailFull']
     p.slug = row['slug']
     p.tags = row['tags']
     p.title = row['title']
     p.nas_design = row['nasDesign']
     p.product_type = row['productType']
     p.sized_images = row['sizedImages']
+    p.on_sale = row['isOnSale']
     return p
 
 
