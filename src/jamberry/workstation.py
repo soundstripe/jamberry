@@ -313,6 +313,7 @@ class JamberryWorkstation(Workstation):
             JAMBERRY_LOGOUT_URL=urljoin(self.workstation_url, 'login/logout.aspx'),
             JAMBERRY_TAR_URL=urljoin(self.workstation_url, 'associate/commissions/Activity.aspx'),
             JAMBERRY_ORDERS_URL=urljoin(self.workstation_url, 'associate/orders/'),
+            JAMBERRY_ORDERS_API_URL=urljoin(self.workstation_url, 'api/reporting/v1/order/history'),
             JAMBERRY_ORDERS_ARCHIVE_URL=urljoin(self.workstation_url, 'associate/orders/Archive.aspx'),
             JAMBERRY_CUSTOMER_ANGEL_CSV_URL=urljoin(self.workstation_url,
                                                     'associate/associates/ExportClientAngelForm.aspx'),
@@ -436,7 +437,7 @@ class JamberryWorkstation(Workstation):
             )
             current = resp.json()
             current_page += 1
-            more_pages = not current.last
+            more_pages = not current['orderHistoryPage']['last']
             data.extend(current['orderHistoryPage']['content'])
         return data
 
