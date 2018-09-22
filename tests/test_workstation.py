@@ -1,4 +1,6 @@
 import csv
+from decimal import Decimal
+
 from itertools import islice
 
 from datetime import datetime, timedelta
@@ -97,9 +99,9 @@ def test_extract_shipping_address(order_detail_html):
 def test_extract_line_items(order_detail_html):
     soup = BeautifulSoup(order_detail_html)
     line_items = extract_line_items(soup)
-    assert line_items[0].name == 'Crimson Crush'
-    assert line_items[0].quantity == 2
-    assert line_items[3].total == float(65)
+    assert line_items[0].name == 'Cotton Candy Kisses'
+    assert line_items[0].quantity == 1
+    assert line_items[3].total == Decimal('19.20')
 
 
 @pytest.mark.online
