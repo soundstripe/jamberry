@@ -14,7 +14,7 @@ import dateutil.parser
 
 from .product import Product
 from .customer import Customer
-from .util import currency_to_decimal
+from .util import currency_to_decimal, deprecated
 from .consultant import Consultant, ConsultantActivityRecord
 from .order import Order, OrderLineItem
 
@@ -144,6 +144,7 @@ def parse_archive_order_row_soup(row_soup) -> Order:
     return o
 
 
+@deprecated('use fetch_order_api instead')
 def parse_order_row_soup(row_soup) -> Order:
     o = Order()
     o.customer_name = row_soup.find(text="Placed By:").next.strip()
@@ -259,14 +260,14 @@ def parse_order_api(item):
     order = Order()
     order.id = item['orderID']
     order.customer_id = item['userId']
-    order.customer_name = item['displayName']
-    order.hostess = item['party']['hostName']
-    order.party = item['party']['name']
+    order.customer_name = '{orderedFirstName} {orderedLastName}'.format(**item)
+    order.hostess = item['party']['hostName'] if item['party'] else None
+    order.party = item['party']['name'] if item['party'] else None
     order.order_date = datetime.strptime(item['orderedDate'], '%Y-%m-%dT%H:%M:%S')
     order.status = item['shippedStatus']['description']
     order.ship_date = item.get('shippedDate', None)
     order.qv = item['qv']
-    order.retail_bonus = item['']
+    #order.retail_bonus = item['']
     order.total = item['orderTotal']
     order.shipping_fee = item['shippingTotal']
     order.tax = item['taxTotal']
@@ -372,8 +373,8 @@ class JamberryWorkstation(Workstation):
         j = json.loads(data)
         yield from (customer_from_row(row) for row in j['rows'])
 
-    def orders(self, include_archive=False, include_details=False) -> Iterable[Order]:
-        data = self.fetch_orders_api()
+    def orders(self, start_date=None, end_date=None, include_details=False) -> Iterable[Order]:
+        data = self.fetch_orders_api(start_date, end_date)
         order_generator = (parse_order_api(item) for item in data)
 
         if include_details:
@@ -412,17 +413,23 @@ class JamberryWorkstation(Workstation):
         )
         return resp.content
 
+    @deprecated("use fetch_orders_api instead")
     @requires_login
     def fetch_orders(self):
         resp = self.br.open(self.urls['JAMBERRY_ORDERS_URL'])
         return resp.soup.find(id='ctl00_contentMain_dgAllOrders')
 
     @requires_login
-    def fetch_orders_api(self, start_date='2014-01-01'):
-        end_date = datetime.now().strftime('%Y-%m-%d')
+    def fetch_orders_api(self, start_date='2014-01-01', end_date=None):
+        date_format = '%Y-%m-%d'
+        if end_date is None:
+            end_date = datetime.now().strftime(date_format)
+        if isinstance(start_date, datetime):
+            start_date = start_date.strftime(date_format)
+        if isinstance(end_date, datetime):
+            end_date = end_date.strftime(date_format)
         more_pages = True
         current_page = 0
-        data = []
         while more_pages:
             resp = self.br.open(
                 self.urls['JAMBERRY_ORDERS_API_URL'],
@@ -438,8 +445,7 @@ class JamberryWorkstation(Workstation):
             current = resp.json()
             current_page += 1
             more_pages = not current['orderHistoryPage']['last']
-            data.extend(current['orderHistoryPage']['content'])
-        return data
+            yield from current['orderHistoryPage']['content']
 
     @requires_login
     def fetch_customer_angel_csv(self):
@@ -451,6 +457,7 @@ class JamberryWorkstation(Workstation):
         resp = self.br.open(self.urls['JAMBERRY_API_CUSTOMER_VOLUME_URL'].format(self._consultant_id))
         return resp.content
 
+    @deprecated("use fetch_orders_api instead")
     @requires_login
     def fetch_archive_orders(self):
         resp = self.br.open(self.urls['JAMBERRY_ORDERS_ARCHIVE_URL'])

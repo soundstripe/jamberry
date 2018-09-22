@@ -1,4 +1,6 @@
 import csv
+from itertools import islice
+
 from datetime import datetime, timedelta
 import pytest
 from bs4 import BeautifulSoup
@@ -76,7 +78,9 @@ def test_create_and_delete_tmp_search_cart_retail(ws):
 @pytest.mark.online
 @pytest.mark.usefixtures('ws')
 def test_orders(ws):
-    orders = list(ws.orders())
+    order_generator = ws.orders()
+    first_50_orders = islice(order_generator, 0, 50)
+    orders = list(first_50_orders)
     assert orders is not None
 
 
@@ -114,15 +118,10 @@ def test_parse_order_row(order_row_html):
     assert order.customer_name == 'Foo Bar'
     assert order.shipping_name == 'Foo Bar'
     assert order.order_date == datetime(2017, 10, 1, 6, 0)
-    assert order.subtotal == float(15)
-    assert order.shipping_fee == 0
-    assert order.tax == 1.09
     assert order.status == 'Shipped'
     assert order.order_type == 'Party'
     assert order.order_details_url == 'OrderDetails.aspx?id=12345678'
     assert order.customer_id == '1234567'
-    assert order.total == 16.09
-    assert order.qv == 0
     assert order.hostess == 'Foo Manchu'
     assert order.party == 'What a Party!'
     assert order.ship_date == datetime(2017, 10, 1)
