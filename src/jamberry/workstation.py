@@ -1,22 +1,22 @@
 import json
+import re
 from abc import abstractmethod, ABC
 from collections import OrderedDict
 from csv import DictReader
 from datetime import datetime, timedelta
 from functools import wraps
 from itertools import chain
-from urllib.parse import urljoin, urlencode
-import re
 from typing import Iterable, Tuple
+from urllib.parse import urljoin
 
-import mechanicalsoup
 import dateutil.parser
+import mechanicalsoup
 
-from .product import Product
-from .customer import Customer
-from .util import currency_to_decimal, deprecated
 from .consultant import Consultant, ConsultantActivityRecord
+from .customer import Customer
 from .order import Order, OrderLineItem
+from .product import Product
+from .util import currency_to_decimal, deprecated
 
 
 def field_data(soup, name) -> (str, str):
@@ -448,6 +448,12 @@ class JamberryWorkstation(Workstation):
             yield from current['orderHistoryPage']['content']
 
     @requires_login
+    def fetch_order_detail_api(self, reference_num):
+        url = self.urls['JAMBERRY_ORDER_DETAIL_API_URL'] + str(reference_num)
+        resp = self.br.open(url)
+        return resp.json()
+
+    @requires_login
     def fetch_customer_angel_csv(self):
         resp = self.br.open(self.urls['JAMBERRY_CUSTOMER_ANGEL_CSV_URL'])
         return resp.content
@@ -528,7 +534,7 @@ class JamberryWorkstation(Workstation):
         return json_result
 
     def read_config(self):
-        from configparser import ConfigParser, Error
+        from configparser import ConfigParser
         parser = ConfigParser()
         config_path = 'jamberry.ini'
         found = parser.read(config_path)
