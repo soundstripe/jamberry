@@ -324,6 +324,8 @@ class JamberryWorkstation(Workstation):
             JAMBERRY_API_CUSTOMER_VOLUME_URL=urljoin(self.workstation_url,
                                                      'api/reporting/v1/consultant/{}/customers/volume'),
             JAMBERRY_API_TEAM_ACTIVITY_REPORT_URL=urljoin(self.workstation_url, 'api/consultant/{}/team/activity/csv'),
+            JAMBERRY_ORDER_DETAIL_API_URL=urljoin(self.workstation_url, 'api/order/placed/orderNumber/'),
+            JAMBERRY_ORDER_TRACKING_API_URL=urljoin(self.workstation_url, 'api/fulfillment/getordershiptracking/'),
         )
         return urls
 
@@ -452,6 +454,13 @@ class JamberryWorkstation(Workstation):
         url = self.urls['JAMBERRY_ORDER_DETAIL_API_URL'] + str(reference_num)
         resp = self.br.open(url)
         return resp.json()
+
+    @requires_login
+    def fetch_order_tracking(self, order_id):
+        url = self.urls['JAMBERRY_ORDER_TRACKING_API_URL'] + str(order_id)
+        resp = self.br.open(url)
+        return resp.json()
+
 
     @requires_login
     def fetch_customer_angel_csv(self):
