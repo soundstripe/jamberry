@@ -144,7 +144,7 @@ def parse_archive_order_row_soup(row_soup) -> Order:
     return o
 
 
-@deprecated('use fetch_order_api instead')
+@deprecated('use fetch_orders_api instead')
 def parse_order_row_soup(row_soup) -> Order:
     o = Order()
     o.customer_name = row_soup.find(text="Placed By:").next.strip()
