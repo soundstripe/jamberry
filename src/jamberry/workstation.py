@@ -256,9 +256,43 @@ def parse_product(row) -> Product:
     return p
 
 
+def parse_placed_order_api(item):
+    order = Order()
+    order.id = item['id']
+    order.order_number = item['orderNum']
+    order.customer_id = item['address']['id']
+    order.customer_name = item['address']['name']
+    # order.hostess = item['party']['hostName'] if item['party'] else None
+    # order.party = item['party']['name'] if item['party'] else None
+    order.order_date = datetime.fromtimestamp(item['createdTime'] / 1000)
+    order.status = item['state']
+    # order.ship_date = item.get('shippedDate', None)
+    order.qv = item['qv']
+    # order.retail_bonus = item['']
+    order.total = item['total']
+    order.shipping_fee = item['shipping']
+    order.tax = item['tax']
+    # order.order_type = item['orderType']['orderTypeDescription']
+    order.shipping_name = item['shippingAddress']['name']
+    order.shipping_address = item['shippingAddress']
+    order.subtotal = item['subtotal']
+    # order.customer_contact = item['orderedEmail']
+    order.line_items = []
+    for osi in item['items']:
+        li = OrderLineItem()
+        li.name = osi['description']
+        li.total = osi['total']
+        li.price = osi['price']
+        li.quantity = osi['quantity']
+        li.sku = osi['sku']
+        order.line_items.append(li)
+    return order
+
+
 def parse_order_api(item):
     order = Order()
     order.id = item['orderID']
+    order.order_number = item['orderReferenceNum']
     order.customer_id = item['userId']
     order.customer_name = '{orderedFirstName} {orderedLastName}'.format(**item)
     order.hostess = item['party']['hostName'] if item['party'] else None
@@ -291,6 +325,10 @@ def parse_order_api(item):
     return order
 
 
+class OrderNotFoundException(Exception):
+    pass
+
+
 class JamberryWorkstation(Workstation):
     def __init__(self, username=None, password=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -316,6 +354,7 @@ class JamberryWorkstation(Workstation):
             JAMBERRY_ORDERS_URL=urljoin(self.workstation_url, 'associate/orders/'),
             JAMBERRY_ORDERS_API_URL=urljoin(self.workstation_url, 'api/reporting/v1/order/history'),
             JAMBERRY_ORDERS_ARCHIVE_URL=urljoin(self.workstation_url, 'associate/orders/Archive.aspx'),
+            JAMBERRY_PLACED_ORDER_URL=urljoin(self.workstation_url, 'api/order/placed/orderNumber'),
             JAMBERRY_CUSTOMER_ANGEL_CSV_URL=urljoin(self.workstation_url,
                                                     'associate/associates/ExportClientAngelForm.aspx'),
             JAMBERRY_VIEW_CARTS_URL=urljoin(self.workstation_url, 'us/en/wscart'),
@@ -420,6 +459,13 @@ class JamberryWorkstation(Workstation):
     def fetch_orders(self):
         resp = self.br.open(self.urls['JAMBERRY_ORDERS_URL'])
         return resp.soup.find(id='ctl00_contentMain_dgAllOrders')
+
+    @requires_login
+    def fetch_order(self, order_number):
+        resp = self.br.open(self.urls['JAMBERRY_PLACED_ORDER_URL'] + '/' + order_number)
+        if resp.status_code == 404:
+            raise OrderNotFoundException
+        return resp.json()
 
     @requires_login
     def fetch_orders_api(self, start_date='2014-01-01', end_date=None):

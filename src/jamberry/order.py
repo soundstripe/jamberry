@@ -1,6 +1,7 @@
 class Order:
     __slots__ = (
         'id',
+        'order_number',
         'customer_name',
         'shipping_name',
         'order_date',
