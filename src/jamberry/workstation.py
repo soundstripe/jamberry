@@ -440,12 +440,14 @@ class JamberryWorkstation(Workstation):
         if month is None:
             month = datetime.now().month
         filter_data = OrderedDict(
-            sort='-start',
+            sort='level',
             filter='level|between|1|{}'.format(levels),
             period=year * 100 + month,  # YYYYMM
             region='US',
             lang='en',
-            start=0,
+            direct='false',
+            start=0,uplineRankId=0,
+
             trans='CompRank_AdvancedConsultant|Advanced Consultant,CompRank_Consultant|Consultant,CompRank_SeniorConsultant|Senior Consultant,CompRank_LeadConsultant|Lead Consultant,CompRank_TeamManager|Team Manager,CompRank_SeniorTeamManager|Senior Team Manager,CompRank_PremierConsultant|Premier Consultant,CompRank_SeniorLeadConsultant|Senior Lead Consultant,CompRank_Executive|Executive,CompRank_SeniorExecutive|Senior Executive,CompRank_LeadExecutive|Lead Executive,CompRank_EliteExecutive|Elite Executive,ProfessionalConsultant|Professional Consultant,Hobbyist|Hobbyist,FastStart|Fast Start,Active|Active,In Progress|In Progress,generation|GEN,level|DLL,contact|Contact,firstName|First,lastName|Last,email|Email,phone|Phone,address|Address,city|City,state|State,zip|ZIP,country|Country,conference|Attending Conference,start|Enrollment,status|Status,login|Last Login,type|Type,title|Title,pay|Pay Title,prv|RV,qv|QV,pcv|CV,trv|TQV,drv|DQV,active|Active Legs,sponsored|Recruits,svip|SVIPs,downline|Organization Total,tripPts|Trip,manager|Team Manager,sponsor|Sponsor,sponsorEmail|Sponsor Email'
         )
         resp = self.br.get(
